@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const filterControls = document.getElementById('filter-controls');
     const dateCheckboxes = document.querySelectorAll('.date-filter-cb');
     const btnSaveState = document.getElementById('btn-save-state');
+    const btnLoadCloud = document.getElementById('btn-load-cloud');
 
     // Checklist elements
     const chkStep1 = document.getElementById('chk-step-1');
@@ -30,27 +31,62 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 1. Cargar datos iniciales de Supabase
     async function initSupabaseData() {
+        loadingState.classList.remove('hidden');
         // Cargar encargados
         const { data: encData } = await _supabase.from('configuracion_encargados').select('nombre');
         if (encData) customEncargados = encData.map(e => e.nombre);
 
         // Cargar vehículos guardados
-        const { data: vehData } = await _supabase.from('seguimiento_vehiculos').select('*');
+        const { data: vehData } = await _supabase.from('seguimiento_vehiculos').select('*').order('ultima_actualizacion', { ascending: false });
         if (vehData) {
             vehData.forEach(v => {
                 savedVehicles[v.ot] = {
+                    ot: v.ot,
                     encargado: v.encargado,
                     enTaller: v.en_taller,
                     fechaSeguimiento: v.fecha_seguimiento,
                     listo: v.listo,
                     appearances: v.asteriscos,
-                    lastUpload: new Date(v.ultima_actualizacion).toLocaleDateString('en-CA')
+                    lastUpload: v.ultima_actualizacion ? new Date(v.ultima_actualizacion).toLocaleDateString('en-CA') : ''
                 };
             });
         }
+        loadingState.classList.add('hidden');
     }
 
     await initSupabaseData();
+
+    // Botón para ver datos de la nube sin archivo
+    btnLoadCloud.addEventListener('click', async () => {
+        await initSupabaseData(); // Refrescar datos
+        
+        if (Object.keys(savedVehicles).length === 0) {
+            alert('No hay datos guardados en la nube aún.');
+            return;
+        }
+
+        // Convertir savedVehicles a un formato compatible con renderTable
+        const cloudData = [{}]; // Fila vacía para simular el header del Excel
+        Object.values(savedVehicles).forEach(v => {
+            cloudData.push({
+                'B': v.ot,
+                'G': v.encargado,
+                'D': v.lastUpload,
+                'V': v.enTaller === 'NO' ? 'FINALIZADO' : 'PENDIENTE',
+                '_isCloudOnly': true,
+                ...v
+            });
+        });
+
+        currentData = cloudData;
+        renderTable(cloudData);
+        
+        emptyState.classList.add('hidden');
+        tableContainer.classList.remove('hidden');
+        filterControls.classList.remove('hidden');
+        document.querySelectorAll('.print-controls, #action-guardar').forEach(el => el.classList.remove('hidden'));
+        applyFilters();
+    });
 
     // Manejar filtro de fechas y encargado
     dateCheckboxes.forEach(cb => cb.addEventListener('change', applyFilters));
@@ -216,7 +252,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const rows = data.slice(1);
         const uniqueOrders = new Map();
         rows.forEach(row => {
-            const ot = row['B'];
+            const ot = row['B'] || row.ot;
             if (!ot || String(ot).trim() === '') return;
             if (!uniqueOrders.has(ot)) uniqueOrders.set(ot, row);
         });
@@ -228,8 +264,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         hoy.setHours(0, 0, 0, 0);
 
         arrayOrders.forEach(row => {
-            const ot = row['B'];
-            const e = row['G'] || '';
+            const ot = row['B'] || row.ot;
+            const e = row['G'] || row.encargado || '';
             if (e.trim()) uniqueEncargadosSet.add(e.trim());
 
             let prevData = savedVehicles[ot];
@@ -238,11 +274,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (prevData) {
                 let apps = prevData.appearances || 0;
                 let isListo = prevData.listo || false;
-                if (prevData.lastUpload !== todayStr) {
+                
+                if (!row._isCloudOnly && prevData.lastUpload && prevData.lastUpload !== todayStr) {
                     apps += 1;
                     isListo = false;
                 }
-                row['G'] = prevData.encargado || row['G'];
+                
+                row['G'] = prevData.encargado || row['G'] || row.encargado || '';
                 row._savedEnTaller = prevData.enTaller;
                 row._savedFechaSeg = prevData.fechaSeguimiento;
                 row._listo = isListo;
@@ -255,13 +293,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             // Categoría
-            const fechaCol = row['D'] || '';
+            const fechaCol = row['D'] || row.lastUpload || '';
             let categoryId = 7;
-            let categoryName = 'Fecha desconocida';
-            if (fechaCol) {
+            let categoryName = 'Otras órdenes';
+            if (fechaCol && fechaCol.includes('-')) {
                 const parts = fechaCol.split(' ')[0].split('-');
                 if (parts.length === 3) {
-                    const d = new Date(parts[0], parts[1]-1, parts[2]);
+                    const d = new Date(parts[0], parts[1] - 1, parts[2]);
                     const diff = Math.floor((hoy - d) / (1000 * 60 * 60 * 24));
                     if (diff <= 7) { categoryId = 1; categoryName = '1. Esta semana'; }
                     else if (diff <= 14) { categoryId = 2; categoryName = '2. Semana pasada'; }
@@ -278,7 +316,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const listEncargados = Array.from(uniqueEncargadosSet).sort();
         printEncargado.innerHTML = '<option value="">Todos los Encargados</option>' + listEncargados.map(enc => `<option value="${enc}">${enc}</option>`).join('');
 
-        arrayOrders.sort((a, b) => (a._categoryId - b._categoryId) || (a['G']||'').localeCompare(b['G']||''));
+        arrayOrders.sort((a, b) => (a._categoryId - b._categoryId) || ((a['G'] || a.encargado || '').localeCompare(b['G'] || b.encargado || '')));
 
         let currentCategory = null;
         let globalCounter = 1;
@@ -294,8 +332,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             const tr = document.createElement('tr');
             if (row._listo) tr.classList.add('row-tachada');
-            const ot = row['B'];
-            tr.dataset.encargado = row['G'] || 'Sin Asignar';
+            const ot = row['B'] || row.ot;
+            tr.dataset.encargado = row['G'] || row.encargado || 'Sin Asignar';
             tr.dataset.ot = ot;
 
             // Checkbox Listo
@@ -313,8 +351,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             tr.appendChild(tdListo);
 
             tr.appendChild(createCell(globalCounter++));
-            tr.appendChild(createCell(`${ot}${row._asterisks}`));
-            tr.appendChild(createCell(row['D'] || ''));
+            tr.appendChild(createCell(`${ot}${row._asterisks || ''}`));
+            tr.appendChild(createCell(row['D'] || row.lastUpload || ''));
 
             // Encargado Select
             const tdEnc = document.createElement('td');
@@ -323,7 +361,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             listEncargados.forEach(enc => {
                 const opt = document.createElement('option');
                 opt.value = enc; opt.textContent = enc;
-                if (enc === row['G']) opt.selected = true;
+                if (enc === (row['G'] || row.encargado)) opt.selected = true;
                 selEnc.appendChild(opt);
             });
             selEnc.addEventListener('change', (e) => {
@@ -334,7 +372,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             tr.appendChild(tdEnc);
 
             tr.appendChild(createCell(row['H'] || ''));
-            tr.appendChild(createCell(`${row['K'] || ''} ${row['L'] || ''}`));
+            tr.appendChild(createCell(row._isCloudOnly ? '---' : `${row['K'] || ''} ${row['L'] || ''}`));
             tr.appendChild(createCell(row['T'] || ''));
 
             // En Taller Select
@@ -362,7 +400,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             else if (enTaller === 'NO') tr.classList.add('row-white');
             else tr.classList.add('row-yellow');
 
-            const tdCosto = createCell('Q.' + (row['AO'] || '0.00'));
+            const tdCosto = createCell(row._isCloudOnly ? '---' : 'Q.' + (row['AO'] || '0.00'));
             tdCosto.className = 'col-costo';
             tr.appendChild(tdCosto);
 
@@ -387,8 +425,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnSaveState.onclick = async function () {
             // Guardar o actualizar todos los vehículos actuales en Supabase
             const updates = arrayOrders.map(row => ({
-                ot: row['B'],
-                encargado: row['G'],
+                ot: row['B'] || row.ot,
+                encargado: row['G'] || row.encargado,
                 en_taller: row._savedEnTaller || 'REVISAR',
                 fecha_seguimiento: row._savedFechaSeg || '',
                 listo: row._listo || false,
