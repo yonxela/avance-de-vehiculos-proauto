@@ -222,19 +222,38 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const worksheet = workbook.Sheets[firstSheetName];
                 const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: \"A\", defval: \"\" });
 
-                const rowsWithOrigin = jsonData.slice(1).map(row => ({ ...row, _origin: isColorCenter ? 'COLOR_CENTER' : 'PROAUTO' }));
+                const filteredRows = jsonData.filter(row => {
+                    const ot = row['B'] || row.ot;
+                    return ot && String(ot).trim() !== '';
+                });
 
-                if (isColorCenter && currentData) {
-                    currentData = currentData.concat(rowsWithOrigin);
-                } else {
-                    currentData = [{ A: 'Header Placeholder' }, ...rowsWithOrigin];
+                const rowsWithOrigin = filteredRows.map(row => ({ 
+                    ...row, 
+                    _origin: isColorCenter ? 'COLOR_CENTER' : 'PROAUTO' 
+                }));
+
+                // Inicializar currentData si no existe
+                if (!currentData) {
+                    currentData = [{ A: 'Header' }];
                 }
+
+                // Obtener OTs existentes para evitar duplicados en la vista actual
+                const existingOts = new Set(currentData.slice(1).map(r => r['B'] || r.ot));
+                const newRows = rowsWithOrigin.filter(row => {
+                    const ot = row['B'] || row.ot;
+                    return !existingOts.has(ot);
+                });
+
+                currentData = currentData.concat(newRows);
 
                 renderTable(currentData);
                 loadingState.classList.add('hidden');
                 tableContainer.classList.remove('hidden');
-                document.querySelectorAll('.print-controls, #action-guardar, #filter-controls, #btn-save-state').forEach(el => el.classList.remove('hidden'));
-
+                emptyState.classList.add('hidden');
+                
+                // Mostrar todos los controles
+                document.querySelectorAll('.print-controls, .step-actions, #filter-controls, #btn-save-state').forEach(el => el.classList.remove('hidden'));
+                
                 applyFilters();
                 if (isColorCenter) { if (chkStep2) chkStep2.checked = true; }
                 else { if (chkStep1) chkStep1.checked = true; }
@@ -252,7 +271,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function renderTable(data) {
         tableBody.innerHTML = '';
-        if (!data || data.length < 2) return;
+        if (!data || data.length < 2) {
+            console.log(\"No hay datos para mostrar\");
+            return;
+        }
 
         const rows = data.slice(1);
         const uniqueOrders = new Map();
@@ -484,6 +506,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function updateVehicleField(ot, field, value) {
+        if (!ot) return;
         const update = { ot, [field]: value, ultima_actualizacion: new Date().toISOString() };
         await _supabase.from('seguimiento_vehiculos').upsert([update]);
     }
