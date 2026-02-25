@@ -229,10 +229,13 @@ body {
 /* Tabs */
 .tabs-container {
     display: flex;
-    gap: 0.5rem;
+    justify-content: space-between;
+    align-items: center;
     padding: 0 1rem 1rem 1rem;
     border-bottom: 2px solid var(--border-color);
     margin-bottom: 1rem;
+    flex-wrap: wrap;
+    gap: 1rem;
 }
 
 .tab-btn {

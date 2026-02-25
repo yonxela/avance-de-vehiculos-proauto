@@ -25,15 +25,6 @@
                         <h1>Taller ProAuto - Seguimiento de Vehículos</h1>
                         <p>Carga el reporte del sistema para actualizar el estado de los vehículos</p>
                     </div>
-
-                    <div id="filter-controls" class="hidden filter-checkboxes">
-                        <span class="filter-label">Filtro de Fechas:</span>
-                        <label><input type="checkbox" class="date-filter-cb" value="hoy_vencidas" checked>
-                            Hoy/Vencidas</label>
-                        <label><input type="checkbox" class="date-filter-cb" value="futuras" checked> Próximas</label>
-                        <label><input type="checkbox" class="date-filter-cb" value="sin_fecha" checked> Sin
-                            Asignar</label>
-                    </div>
                 </div>
             </div>
 
@@ -117,8 +108,17 @@
 
         <main class="table-container">
             <div id="origin-tabs" class="tabs-container hidden">
-                <button class="tab-btn active" data-origin="PROAUTO">ProAuto</button>
-                <button class="tab-btn" data-origin="COLOR_CENTER">Color Center</button>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button class="tab-btn active" data-origin="PROAUTO">ProAuto</button>
+                    <button class="tab-btn" data-origin="COLOR_CENTER">Color Center</button>
+                </div>
+                <div id="filter-controls" class="hidden filter-checkboxes">
+                    <span class="filter-label">Filtro de Fechas:</span>
+                    <label><input type="checkbox" class="date-filter-cb" value="hoy_vencidas" checked>
+                        Hoy/Vencidas</label>
+                    <label><input type="checkbox" class="date-filter-cb" value="futuras" checked> Próximas</label>
+                    <label><input type="checkbox" class="date-filter-cb" value="sin_fecha" checked> Sin Asignar</label>
+                </div>
             </div>
             <div id="loading" class="hidden">Procesando archivo...</div>
             <div class="table-scroll">
