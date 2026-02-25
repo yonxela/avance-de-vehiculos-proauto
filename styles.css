@@ -313,13 +313,24 @@ tbody td:last-child {
 }
 
 .separator-origin td {
-    background-color: #334155 !important;
-    color: white !important;
-    font-size: 1.1rem !important;
+    font-size: 1.3rem !important;
     padding: 1.5rem 1rem !important;
     text-align: center !important;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.15em;
     border: none !important;
+    font-weight: 900 !important;
+}
+
+.origin-proauto td {
+    background-color: #334155 !important;
+    color: white !important;
+}
+
+.origin-color-center td {
+    background-color: #fee2e2 !important; /* Soft red background */
+    color: #dc2626 !important; /* Strong red text */
+    border-top: 4px solid #dc2626 !important;
+    border-bottom: 4px solid #dc2626 !important;
 }
 
 /* Common status selects/inputs */
