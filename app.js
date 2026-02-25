@@ -86,8 +86,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         emptyState.classList.add('hidden');
         tableContainer.classList.remove('hidden');
-        const vTable = document.getElementById('vehicles-table');
-        if (vTable) vTable.classList.remove('hidden');
         filterControls.classList.remove('hidden');
         document.querySelectorAll('.print-controls, #action-guardar').forEach(el => el.classList.remove('hidden'));
         applyFilters();
@@ -98,9 +96,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     printEncargado.addEventListener('change', applyFilters);
 
     function applyFilters() {
-        const showHoyVencidas = document.querySelector('.date-filter-cb[value="hoy_vencidas"]').checked;
-        const showFuturas = document.querySelector('.date-filter-cb[value="futuras"]').checked;
-        const showSinFecha = document.querySelector('.date-filter-cb[value="sin_fecha"]').checked;
+        const showHoyVencidas = document.querySelector('.date-filter-cb[value=\"hoy_vencidas\"]').checked;
+        const showFuturas = document.querySelector('.date-filter-cb[value=\"futuras\"]').checked;
+        const showSinFecha = document.querySelector('.date-filter-cb[value=\"sin_fecha\"]').checked;
         const selectedEncargado = printEncargado.value;
 
         const allRows = tableBody.querySelectorAll('tr');
@@ -113,11 +111,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             const inputDate = inputDateEle ? inputDateEle.value : '';
             const rowEncargado = row.dataset.encargado || '';
 
-            // Si es una carga nueva o no tiene fecha de seguimiento, mostrar si 'Sin Asignar' está marcado
             let dateMatch = false;
             if (!inputDate) {
-                // Forzar que se muestren los sin fecha siempre al cargar para no esconder la tabla
-                dateMatch = true; 
+                if (showSinFecha) dateMatch = true;
             } else {
                 if (inputDate <= todayStr && showHoyVencidas) dateMatch = true;
                 else if (inputDate > todayStr && showFuturas) dateMatch = true;
@@ -128,11 +124,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 encargadoMatch = rowEncargado === selectedEncargado;
             }
 
-            if (dateMatch && encargadoMatch) {
-                row.classList.remove('hidden');
-            } else {
-                row.classList.add('hidden');
-            }
+            if (dateMatch && encargadoMatch) row.classList.remove('hidden');
+            else row.classList.add('hidden');
         });
 
         // Cleanup empty separators
@@ -148,9 +141,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 sectorHasRows = true;
             }
         });
-        if (currentSectorHeader && !sectorHasRows) {
-            currentSectorHeader.classList.add('hidden');
-        }
+        if (currentSectorHeader && !sectorHasRows) currentSectorHeader.classList.add('hidden');
     }
 
     // Añadir encargado manual
@@ -231,60 +222,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const worksheet = workbook.Sheets[firstSheetName];
                 const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: \"A\", defval: \"\" });
 
-                console.log(\"JSON original (primeras 2 filas):\", jsonData.slice(0, 2));
+                const rowsWithOrigin = jsonData.slice(1).map(row => ({ ...row, _origin: isColorCenter ? 'COLOR_CENTER' : 'PROAUTO' }));
 
-                const filteredRows = jsonData.filter(row => {
-                    // Validar si la OT está en B o bajo la propiedad ot directamente (dependiendo encabezados)
-                    const ot = row['B'] || row.ot || row['OT'] || row['ot'];
-                    return ot && String(ot).trim() !== '';
-                });
-
-                console.log(`Filas válidas después de filtrar OT: ${filteredRows.length}`);
-
-                const rowsWithOrigin = filteredRows.map(row => {
-                    // Normalizar OT a la columna B que espera el renderTable
-                    row['B'] = row['B'] || row.ot || row['OT'] || row['ot'];
-                    return {
-                        ...row,
-                        _origin: isColorCenter ? 'COLOR_CENTER' : 'PROAUTO'
-                    };
-                });
-
-                // Inicializar currentData si no existe
-                if (!currentData || currentData.length === 0) {
-                    currentData = [{ A: 'Header Placeholder' }];
+                if (isColorCenter && currentData) {
+                    currentData = currentData.concat(rowsWithOrigin);
+                } else {
+                    currentData = [{ A: 'Header Placeholder' }, ...rowsWithOrigin];
                 }
 
-                // Obtener OTs existentes para evitar duplicados en la vista actual
-                const existingOts = new Set(currentData.slice(1).map(r => r['B'] || r.ot));
-                const newRows = rowsWithOrigin.filter(row => {
-                    const ot = row['B'] || row.ot;
-                    return !existingOts.has(ot);
-                });
-
-                console.log(`Nuevas filas a agregar: ${newRows.length}`);
-                
-                currentData = currentData.concat(newRows);
-
-                console.log(\"Renderizando tabla con data:\", currentData.length, \"filas\");
                 renderTable(currentData);
-                
                 loadingState.classList.add('hidden');
-                emptyState.classList.add('hidden');
                 tableContainer.classList.remove('hidden');
-                const vTable = document.getElementById('vehicles-table');
-                if (vTable) {
-                    vTable.classList.remove('hidden');
-                    console.log(\"Tabla mostrada con éxito\");
-                }
-                
-                // Mostrar todos los controles (botones, print, etc)
-                document.querySelectorAll('.print-controls, .step-actions, #filter-controls, #btn-save-state').forEach(el => el.classList.remove('hidden'));
-                
-                // Aplicar filtros visuales finales (forzamos que se muestre todo sin fecha)
-                document.querySelector('.date-filter-cb[value=\"sin_fecha\"]').checked = true;
+                document.querySelectorAll('.print-controls, #action-guardar, #filter-controls, #btn-save-state').forEach(el => el.classList.remove('hidden'));
+
                 applyFilters();
-                
                 if (isColorCenter) { if (chkStep2) chkStep2.checked = true; }
                 else { if (chkStep1) chkStep1.checked = true; }
             } catch (error) {
@@ -301,10 +252,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function renderTable(data) {
         tableBody.innerHTML = '';
-        if (!data || data.length < 2) {
-            console.log(\"No hay datos para mostrar\");
-            return;
-        }
+        if (!data || data.length < 2) return;
 
         const rows = data.slice(1);
         const uniqueOrders = new Map();
@@ -397,10 +345,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 currentOrigin = row._origen;
                 currentCategory = null; // Reiniciar categoría al cambiar de origen
                 const trOrigin = document.createElement('tr');
-                const isColorCenter = currentOrigin === 'COLOR_CENTER';
-                trOrigin.className = 'separator-row separator-origin' + (isColorCenter ? ' origin-color-center' : ' origin-proauto');
-                const label = isColorCenter ? 'COLOR CENTER' : 'TALLER PROAUTO';
-                trOrigin.innerHTML = `<td colspan=\"12\">\${label}</td>`;
+                trOrigin.className = 'separator-row';
+                if (currentOrigin === 'COLOR_CENTER') {
+                    trOrigin.innerHTML = `<td colspan=\"12\" style=\"color: #dc2626; font-size: 1.1rem; padding: 1rem 0.75rem;\">▶ COLOR CENTER ◀</td>`;
+                } else {
+                    trOrigin.innerHTML = `<td colspan=\"12\" style=\"font-size: 1.1rem; padding: 1rem 0.75rem;\">▶ TALLER PROAUTO ◀</td>`;
+                }
                 tableBody.appendChild(trOrigin);
             }
 
@@ -536,7 +486,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function updateVehicleField(ot, field, value) {
-        if (!ot) return;
         const update = { ot, [field]: value, ultima_actualizacion: new Date().toISOString() };
         await _supabase.from('seguimiento_vehiculos').upsert([update]);
     }
