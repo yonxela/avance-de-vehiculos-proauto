@@ -47,6 +47,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     fechaSeguimiento: v.fecha_seguimiento,
                     listo: v.listo,
                     appearances: v.asteriscos,
+                    observacion: v.observacion || '',
+                    origen: v.origen || 'PROAUTO',
                     lastUpload: v.ultima_actualizacion ? new Date(v.ultima_actualizacion).toLocaleDateString('en-CA') : ''
                 };
             });
@@ -59,7 +61,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Botón para ver datos de la nube sin archivo
     btnLoadCloud.addEventListener('click', async () => {
         await initSupabaseData(); // Refrescar datos
-        
+
         if (Object.keys(savedVehicles).length === 0) {
             alert('No hay datos guardados en la nube aún.');
             return;
@@ -74,13 +76,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 'D': v.lastUpload,
                 'V': v.enTaller === 'NO' ? 'FINALIZADO' : 'PENDIENTE',
                 '_isCloudOnly': true,
+                '_origin': v.origen || 'PROAUTO',
                 ...v
             });
         });
 
         currentData = cloudData;
         renderTable(cloudData);
-        
+
         emptyState.classList.add('hidden');
         tableContainer.classList.remove('hidden');
         filterControls.classList.remove('hidden');
@@ -143,7 +146,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Añadir encargado manual
     addEncargadoBtn.addEventListener('click', async () => {
-        const nuevoName = prompt("Ingresa el nombre del nuevo mecánico o encargado:");
+        const nuevoName = prompt(\"Ingresa el nombre del nuevo mecánico o encargado:\");
         if (nuevoName && nuevoName.trim() !== '') {
             const cleanName = nuevoName.trim().toUpperCase();
             if (!customEncargados.includes(cleanName)) {
@@ -154,10 +157,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                         renderTable(currentData);
                         applyFilters();
                     }
-                    alert(`¡Encargado "${cleanName}" añadido con éxito!`);
+                    alert(`¡Encargado \"${cleanName}\" añadido con éxito!`);
                 }
             } else {
-                alert("Ese encargado ya existe en la lista.");
+                alert(\"Ese encargado ya existe en la lista.\");
             }
         }
     });
@@ -217,24 +220,26 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const workbook = XLSX.read(data, { type: 'array' });
                 const firstSheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[firstSheetName];
-                const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: "A", defval: "" });
+                const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: \"A\", defval: \"\" });
+
+                const rowsWithOrigin = jsonData.slice(1).map(row => ({ ...row, _origin: isColorCenter ? 'COLOR_CENTER' : 'PROAUTO' }));
 
                 if (isColorCenter && currentData) {
-                    currentData = currentData.concat(jsonData.slice(1));
+                    currentData = currentData.concat(rowsWithOrigin);
                 } else {
-                    currentData = jsonData;
+                    currentData = [{ A: 'Header Placeholder' }, ...rowsWithOrigin];
                 }
 
                 renderTable(currentData);
                 loadingState.classList.add('hidden');
                 tableContainer.classList.remove('hidden');
                 document.querySelectorAll('.print-controls, #action-guardar, #filter-controls, #btn-save-state').forEach(el => el.classList.remove('hidden'));
-                
+
                 applyFilters();
                 if (isColorCenter) { if (chkStep2) chkStep2.checked = true; }
                 else { if (chkStep1) chkStep1.checked = true; }
             } catch (error) {
-                alert("Error: " + error.message);
+                alert(\"Error: \" + error.message);
                 loadingState.classList.add('hidden');
                 emptyState.classList.remove('hidden');
             }
@@ -274,15 +279,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (prevData) {
                 let apps = prevData.appearances || 0;
                 let isListo = prevData.listo || false;
-                
+
                 if (!row._isCloudOnly && prevData.lastUpload && prevData.lastUpload !== todayStr) {
                     apps += 1;
                     isListo = false;
                 }
-                
+
                 row['G'] = prevData.encargado || row['G'] || row.encargado || '';
                 row._savedEnTaller = prevData.enTaller;
                 row._savedFechaSeg = prevData.fechaSeguimiento;
+                row._savedObservacion = prevData.observacion;
+                row._origen = row._origin || prevData.origen || 'PROAUTO';
                 row._listo = isListo;
                 row._asterisks = '*'.repeat(Math.min(apps, 3));
                 row._apps = apps;
@@ -290,6 +297,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 row._listo = false;
                 row._apps = 0;
                 row._asterisks = '';
+                row._origen = row._origin || 'PROAUTO';
             }
 
             // Categoría
@@ -314,19 +322,40 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
         const listEncargados = Array.from(uniqueEncargadosSet).sort();
-        printEncargado.innerHTML = '<option value="">Todos los Encargados</option>' + listEncargados.map(enc => `<option value="${enc}">${enc}</option>`).join('');
+        printEncargado.innerHTML = '<option value=\"\">Todos los Encargados</option>' + listEncargados.map(enc => `<option value=\"\${enc}\">\${enc}</option>`).join('');
 
-        arrayOrders.sort((a, b) => (a._categoryId - b._categoryId) || ((a['G'] || a.encargado || '').localeCompare(b['G'] || b.encargado || '')));
+        // Ordenar: 1. Origen (PROAUTO primero), 2. Categoría, 3. Encargado
+        arrayOrders.sort((a, b) => {
+            if (a._origen !== b._origen) {
+                return a._origen === 'PROAUTO' ? -1 : 1;
+            }
+            if (a._categoryId !== b._categoryId) {
+                return a._categoryId - b._categoryId;
+            }
+            return (a['G'] || a.encargado || '').localeCompare(b['G'] || b.encargado || '');
+        });
 
+        let currentOrigin = null;
         let currentCategory = null;
         let globalCounter = 1;
 
         arrayOrders.forEach(row => {
+            // Título de Origen (ProAuto / Color Center)
+            if (row._origen !== currentOrigin) {
+                currentOrigin = row._origen;
+                currentCategory = null; // Reiniciar categoría al cambiar de origen
+                const trOrigin = document.createElement('tr');
+                trOrigin.className = 'separator-row separator-origin';
+                const label = currentOrigin === 'PROAUTO' ? 'TALLER PROAUTO' : 'COLOR CENTER';
+                trOrigin.innerHTML = `<td colspan=\"12\" style=\"background-color: #334155; color: white; text-align: center; font-size: 1.2rem; padding: 1rem;\">\${label}</td>`;
+                tableBody.appendChild(trOrigin);
+            }
+
             if (row._categoryName !== currentCategory) {
                 currentCategory = row._categoryName;
                 const trSep = document.createElement('tr');
                 trSep.className = 'separator-row';
-                trSep.innerHTML = `<td colspan="12">${currentCategory}</td>`;
+                trSep.innerHTML = `<td colspan=\"12\">\${currentCategory}</td>`;
                 tableBody.appendChild(trSep);
             }
 
@@ -351,7 +380,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             tr.appendChild(tdListo);
 
             tr.appendChild(createCell(globalCounter++));
-            tr.appendChild(createCell(`${ot}${row._asterisks || ''}`));
+            tr.appendChild(createCell(`\${ot}\${row._asterisks || ''}`));
             tr.appendChild(createCell(row['D'] || row.lastUpload || ''));
 
             // Encargado Select
@@ -372,7 +401,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             tr.appendChild(tdEnc);
 
             tr.appendChild(createCell(row['H'] || ''));
-            tr.appendChild(createCell(row._isCloudOnly ? '---' : `${row['K'] || ''} ${row['L'] || ''}`));
+            tr.appendChild(createCell(row._isCloudOnly ? '---' : `\${row['K'] || ''} \${row['L'] || ''}`));
             tr.appendChild(createCell(row['T'] || ''));
 
             // En Taller Select
@@ -395,7 +424,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             tdTaller.appendChild(selTaller);
             tr.appendChild(tdTaller);
-            
+
             if (enTaller === 'SI') tr.classList.add('row-green');
             else if (enTaller === 'NO') tr.classList.add('row-white');
             else tr.classList.add('row-yellow');
@@ -405,7 +434,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             tr.appendChild(tdCosto);
 
             const tdObs = document.createElement('td');
-            tdObs.innerHTML = `<input type="text" class="status-select" placeholder="Observación...">`;
+            const inObs = document.createElement('input');
+            inObs.type = 'text'; inObs.className = 'status-select';
+            inObs.placeholder = 'Observación...';
+            inObs.value = row._savedObservacion || '';
+            inObs.addEventListener('change', (e) => {
+                updateVehicleField(ot, 'observacion', e.target.value);
+            });
+            tdObs.appendChild(inObs);
             tr.appendChild(tdObs);
 
             const tdFecha = document.createElement('td');
@@ -431,6 +467,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 fecha_seguimiento: row._savedFechaSeg || '',
                 listo: row._listo || false,
                 asteriscos: row._apps || 0,
+                observacion: row._savedObservacion || '',
+                origen: row._origen || 'PROAUTO',
                 ultima_actualizacion: new Date().toISOString()
             }));
 
