@@ -76,6 +76,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 'D': v.lastUpload,
                 'V': v.enTaller === 'NO' ? 'FINALIZADO' : 'PENDIENTE',
                 '_isCloudOnly': true,
+                '_origen': v.origen || 'PROAUTO',
                 '_origin': v.origen || 'PROAUTO',
                 ...v
             });
@@ -222,7 +223,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const worksheet = workbook.Sheets[firstSheetName];
                 const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: \"A\", defval: \"\" });
 
-                const rowsWithOrigin = jsonData.slice(1).map(row => ({ ...row, _origin: isColorCenter ? 'COLOR_CENTER' : 'PROAUTO' }));
+                const rowsWithOrigin = jsonData.slice(1).map(row => ({ ...row, _origen: isColorCenter ? 'COLOR_CENTER' : 'PROAUTO' }));
 
                 if (isColorCenter && currentData) {
                     currentData = currentData.concat(rowsWithOrigin);
@@ -289,7 +290,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 row._savedEnTaller = prevData.enTaller;
                 row._savedFechaSeg = prevData.fechaSeguimiento;
                 row._savedObservacion = prevData.observacion;
-                row._origen = row._origin || prevData.origen || 'PROAUTO';
+                row._origen = row._origen || prevData.origen || 'PROAUTO';
                 row._listo = isListo;
                 row._asterisks = '*'.repeat(Math.min(apps, 3));
                 row._apps = apps;
@@ -297,7 +298,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 row._listo = false;
                 row._apps = 0;
                 row._asterisks = '';
-                row._origen = row._origin || 'PROAUTO';
+                row._origen = row._origen || 'PROAUTO';
             }
 
             // Categoría
