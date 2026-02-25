@@ -1,5 +1,8 @@
-document.addEventListener('DOMContentLoaded', () => {
-    const uploadInput = document.getElementById('excel-upload');
+const SUPABASE_URL = 'https://rxrodfskmvldozpznyrp.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_rm-U3aeXydu4W0wdSMLW5w_I4LIW5MO';
+const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+document.addEventListener('DOMContentLoaded', async () => {
     const tableContainer = document.getElementById('vehicles-table');
     const tableBody = document.getElementById('table-body');
     const emptyState = document.getElementById('no-data');
@@ -21,9 +24,33 @@ document.addEventListener('DOMContentLoaded', () => {
     const chkStep4 = document.getElementById('chk-step-4');
     const chkStep5 = document.getElementById('chk-step-5');
 
-    let customEncargados = JSON.parse(localStorage.getItem('customEncargados')) || [];
-    let savedVehicles = JSON.parse(localStorage.getItem('savedVehiclesData')) || {};
+    let customEncargados = [];
+    let savedVehicles = {}; // { ot: { data } }
     let currentData = null;
+
+    // 1. Cargar datos iniciales de Supabase
+    async function initSupabaseData() {
+        // Cargar encargados
+        const { data: encData } = await _supabase.from('configuracion_encargados').select('nombre');
+        if (encData) customEncargados = encData.map(e => e.nombre);
+
+        // Cargar vehículos guardados
+        const { data: vehData } = await _supabase.from('seguimiento_vehiculos').select('*');
+        if (vehData) {
+            vehData.forEach(v => {
+                savedVehicles[v.ot] = {
+                    encargado: v.encargado,
+                    enTaller: v.en_taller,
+                    fechaSeguimiento: v.fecha_seguimiento,
+                    listo: v.listo,
+                    appearances: v.asteriscos,
+                    lastUpload: new Date(v.ultima_actualizacion).toLocaleDateString('en-CA')
+                };
+            });
+        }
+    }
+
+    await initSupabaseData();
 
     // Manejar filtro de fechas y encargado
     dateCheckboxes.forEach(cb => cb.addEventListener('change', applyFilters));
@@ -39,18 +66,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const todayStr = new Date().toLocaleDateString('en-CA');
 
         allRows.forEach(row => {
-            if (row.classList.contains('separator-row')) {
-                // Ignore separators for now, clean them up after
-                return;
-            }
+            if (row.classList.contains('separator-row')) return;
 
             const inputDateEle = row.querySelector('.fecha-seg-input');
             const inputDate = inputDateEle ? inputDateEle.value : '';
             const rowEncargado = row.dataset.encargado || '';
 
             let dateMatch = false;
-
-            // Filtro Fecha
             if (!inputDate) {
                 if (showSinFecha) dateMatch = true;
             } else {
@@ -58,203 +80,129 @@ document.addEventListener('DOMContentLoaded', () => {
                 else if (inputDate > todayStr && showFuturas) dateMatch = true;
             }
 
-            // Filtro Encargado
             let encargadoMatch = true;
             if (selectedEncargado !== '') {
                 encargadoMatch = rowEncargado === selectedEncargado;
             }
 
-            if (dateMatch && encargadoMatch) {
-                row.classList.remove('hidden');
-            } else {
-                row.classList.add('hidden');
-            }
+            if (dateMatch && encargadoMatch) row.classList.remove('hidden');
+            else row.classList.add('hidden');
         });
 
         // Cleanup empty separators
         let currentSectorHeader = null;
         let sectorHasRows = false;
-
         allRows.forEach(row => {
             if (row.classList.contains('separator-row')) {
-                if (currentSectorHeader && !sectorHasRows) {
-                    currentSectorHeader.classList.add('hidden');
-                }
+                if (currentSectorHeader && !sectorHasRows) currentSectorHeader.classList.add('hidden');
                 currentSectorHeader = row;
                 sectorHasRows = false;
-                row.classList.remove('hidden'); // Reset to check again
+                row.classList.remove('hidden');
             } else if (!row.classList.contains('hidden')) {
                 sectorHasRows = true;
             }
         });
-
-        if (currentSectorHeader && !sectorHasRows) {
-            currentSectorHeader.classList.add('hidden');
-        }
+        if (currentSectorHeader && !sectorHasRows) currentSectorHeader.classList.add('hidden');
     }
 
     // Añadir encargado manual
-    addEncargadoBtn.addEventListener('click', () => {
+    addEncargadoBtn.addEventListener('click', async () => {
         const nuevoName = prompt("Ingresa el nombre del nuevo mecánico o encargado:");
         if (nuevoName && nuevoName.trim() !== '') {
             const cleanName = nuevoName.trim().toUpperCase();
             if (!customEncargados.includes(cleanName)) {
-                customEncargados.push(cleanName);
-                localStorage.setItem('customEncargados', JSON.stringify(customEncargados));
-                if (currentData) {
-                    renderTable(currentData);
-                    applyFilters();
+                const { error } = await _supabase.from('configuracion_encargados').insert([{ nombre: cleanName }]);
+                if (!error) {
+                    customEncargados.push(cleanName);
+                    if (currentData) {
+                        renderTable(currentData);
+                        applyFilters();
+                    }
+                    alert(`¡Encargado "${cleanName}" añadido con éxito!`);
                 }
-                alert(`¡Encargado "${cleanName}" añadido con éxito!`);
             } else {
                 alert("Ese encargado ya existe en la lista.");
             }
         }
     });
 
-    // Imprimir normal sin color (Paso 3)
+    // Imprimir
     printNormalBtn.addEventListener('click', () => {
-        if (chkStep3) chkStep3.checked = true; // Auto-check pas 3
-
+        if (chkStep3) chkStep3.checked = true;
         document.body.classList.add('print-bw-compact');
-
-        // Timeout para que el navegador aplique los estilos antes de abrir el dialogo de impresión
         setTimeout(() => {
             window.print();
-
-            // Remover clase despues de imprimir
-            window.addEventListener('afterprint', function removeClass() {
-                document.body.classList.remove('print-bw-compact');
-                window.removeEventListener('afterprint', removeClass);
-            }, { once: true });
-
-            // Fallback en caso de que afterprint no dispare
-            setTimeout(() => {
-                document.body.classList.remove('print-bw-compact');
-            }, 3000);
+            window.addEventListener('afterprint', () => document.body.classList.remove('print-bw-compact'), { once: true });
+            setTimeout(() => document.body.classList.remove('print-bw-compact'), 3000);
         }, 100);
     });
 
-    // Imprimir filtrando por encargado
     printBtn.addEventListener('click', () => {
         const selectedEncargado = printEncargado.value;
         const allRows = tableBody.querySelectorAll('tr');
-
-        if (!selectedEncargado || selectedEncargado === "") {
-            alert('Por favor selecciona un encargado en la lista para imprimir su reporte específico.');
+        if (!selectedEncargado) {
+            alert('Por favor selecciona un encargado.');
             return;
         }
 
-        // Ocultar las que no son del encargado (si hay seleccionado)
-        if (selectedEncargado) {
-            allRows.forEach(row => {
-                // Ignore category separators that don't belong to any encargado but are empty?
-                // Wait, separators do not have dataset.encargado. We might want to hide separators or keep them.
-                if (!row.classList.contains('separator-row') && row.dataset.encargado !== selectedEncargado) {
-                    row.classList.add('hidden-print');
-                } else if (!row.classList.contains('separator-row')) {
-                    row.classList.remove('hidden-print');
-                }
-            });
-
-            // Cleanup separators if they don't have following visible rows
-            let currentSectorHeader = null;
-            let sectorHasRows = false;
-
-            allRows.forEach(row => {
-                if (row.classList.contains('separator-row')) {
-                    if (currentSectorHeader && !sectorHasRows) {
-                        currentSectorHeader.classList.add('hidden-print');
-                    }
-                    currentSectorHeader = row;
-                    sectorHasRows = false;
-                    row.classList.remove('hidden-print');
-                } else if (!row.classList.contains('hidden-print')) {
-                    sectorHasRows = true;
-                }
-            });
-
-            if (currentSectorHeader && !sectorHasRows) {
-                currentSectorHeader.classList.add('hidden-print');
+        allRows.forEach(row => {
+            if (!row.classList.contains('separator-row') && row.dataset.encargado !== selectedEncargado) {
+                row.classList.add('hidden-print');
+            } else {
+                row.classList.remove('hidden-print');
             }
-        }
+        });
 
-        if (chkStep4) chkStep4.checked = true; // Auto-check step 4 if successful
-
+        if (chkStep4) chkStep4.checked = true;
         document.body.classList.add('print-bw-compact');
-
         setTimeout(() => {
             window.print();
-
-            // Restaurar visualmente
-            window.addEventListener('afterprint', function removeClass() {
+            window.addEventListener('afterprint', () => {
                 document.body.classList.remove('print-bw-compact');
                 allRows.forEach(row => row.classList.remove('hidden-print'));
-                window.removeEventListener('afterprint', removeClass);
             }, { once: true });
-
-            setTimeout(() => {
-                document.body.classList.remove('print-bw-compact');
-                allRows.forEach(row => row.classList.remove('hidden-print'));
-            }, 3000);
         }, 100);
     });
 
-    // Handle Uploads
+    // Subida de Excel
     function handleExcelUpload(e, isColorCenter) {
         const file = e.target.files[0];
         if (!file) return;
 
-        // Mostrar loading
         emptyState.classList.add('hidden');
         tableContainer.classList.add('hidden');
         filterControls.classList.add('hidden');
         loadingState.classList.remove('hidden');
 
         const reader = new FileReader();
-
         reader.onload = (event) => {
             try {
                 const data = new Uint8Array(event.target.result);
                 const workbook = XLSX.read(data, { type: 'array' });
                 const firstSheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[firstSheetName];
-
                 const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: "A", defval: "" });
 
-                // Merge appends if Color Center, else clear
                 if (isColorCenter && currentData) {
-                    currentData = currentData.concat(jsonData.slice(1)); // Skip header row of second file
+                    currentData = currentData.concat(jsonData.slice(1));
                 } else {
                     currentData = jsonData;
                 }
 
                 renderTable(currentData);
-
-                // Mostrar tabla
                 loadingState.classList.add('hidden');
                 tableContainer.classList.remove('hidden');
-                document.getElementById('print-controls-general').classList.remove('hidden');
-                document.getElementById('print-controls-encargado').classList.remove('hidden');
-                document.getElementById('action-guardar').classList.remove('hidden');
-                btnSaveState.classList.remove('hidden');
-                filterControls.classList.remove('hidden');
-
+                document.querySelectorAll('.print-controls, #action-guardar, #filter-controls, #btn-save-state').forEach(el => el.classList.remove('hidden'));
+                
                 applyFilters();
-
-                if (isColorCenter) {
-                    if (chkStep2) chkStep2.checked = true;
-                } else {
-                    if (chkStep1) chkStep1.checked = true;
-                }
+                if (isColorCenter) { if (chkStep2) chkStep2.checked = true; }
+                else { if (chkStep1) chkStep1.checked = true; }
             } catch (error) {
-                console.error("Error al procesar el archivo Excel:", error);
-                alert("Hubo un error al leer el archivo: " + error.message);
+                alert("Error: " + error.message);
                 loadingState.classList.add('hidden');
                 emptyState.classList.remove('hidden');
             }
         };
-
         reader.readAsArrayBuffer(file);
     }
 
@@ -265,364 +213,202 @@ document.addEventListener('DOMContentLoaded', () => {
         tableBody.innerHTML = '';
         if (!data || data.length < 2) return;
 
-        // El primer registro es la fila de encabezados que exporta el sistema, no la mostramos.
         const rows = data.slice(1);
-
-        // Agrupar por OT (Columna B) ya que el reporte muestra varias filas por orden (una por servicio/producto)
         const uniqueOrders = new Map();
-
-        rows.forEach((row) => {
+        rows.forEach(row => {
             const ot = row['B'];
             if (!ot || String(ot).trim() === '') return;
-            if (uniqueOrders.has(ot)) return;
-            uniqueOrders.set(ot, row);
+            if (!uniqueOrders.has(ot)) uniqueOrders.set(ot, row);
         });
 
-        // Convertir el Mapa a un Array para poder ordenarlo
         let arrayOrders = Array.from(uniqueOrders.values());
-
-        // Obtener encargados únicos y calcular categorías de tiempo
-        const uniqueEncargados = new Set(customEncargados);
+        const uniqueEncargadosSet = new Set(customEncargados);
         const hoy = new Date();
         const todayStr = hoy.toLocaleDateString('en-CA');
-        hoy.setHours(0, 0, 0, 0); // Normalizar a inicio del día
-
-        // Update tracking and occurrences
-        let newSavedVehicles = {};
+        hoy.setHours(0, 0, 0, 0);
 
         arrayOrders.forEach(row => {
             const ot = row['B'];
             const e = row['G'] || '';
-            if (e.trim()) uniqueEncargados.add(e.trim());
+            if (e.trim()) uniqueEncargadosSet.add(e.trim());
 
-            // Check if OT was saved before
             let prevData = savedVehicles[ot];
             let asterisks = '';
 
             if (prevData) {
-                // If the last upload date wasn't today, it means it survived another day in the report!
                 let apps = prevData.appearances || 0;
                 let isListo = prevData.listo || false;
                 if (prevData.lastUpload !== todayStr) {
-                    apps += 1; // Increment appearance
-                    isListo = false; // "si aparecen en el reporte de la siguiente vez que se desmarquen"
+                    apps += 1;
+                    isListo = false;
                 }
-
-                // Inherit saved data state instead of wiping it
                 row['G'] = prevData.encargado || row['G'];
                 row._savedEnTaller = prevData.enTaller;
                 row._savedFechaSeg = prevData.fechaSeguimiento;
                 row._listo = isListo;
-
-                newSavedVehicles[ot] = {
-                    appearances: apps,
-                    lastUpload: todayStr,
-                    encargado: row['G'],
-                    enTaller: prevData.enTaller,
-                    fechaSeguimiento: prevData.fechaSeguimiento,
-                    listo: isListo
-                };
-
-                // Create asterisk string (e.g. 1 reappearance = 1 asterisk)
-                if (apps > 0) {
-                    asterisks = '*'.repeat(Math.min(apps, 3)); // Max 3 asterisks to avoid clutter
-                }
+                row._asterisks = '*'.repeat(Math.min(apps, 3));
+                row._apps = apps;
             } else {
-                newSavedVehicles[ot] = {
-                    appearances: 0,
-                    lastUpload: todayStr,
-                    encargado: row['G'] || '',
-                    enTaller: 'REVISAR',
-                    fechaSeguimiento: '',
-                    listo: false
-                };
                 row._listo = false;
+                row._apps = 0;
+                row._asterisks = '';
             }
-            row._asterisks = asterisks;
 
-            // Lógica de categoría de tiempo
+            // Categoría
             const fechaCol = row['D'] || '';
             let categoryId = 7;
             let categoryName = 'Fecha desconocida';
-
             if (fechaCol) {
-                const dateParts = fechaCol.split(' ')[0].split('-');
-                if (dateParts.length === 3) {
-                    const ordenDate = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
-                    ordenDate.setHours(0, 0, 0, 0);
-
-                    const diffTime = hoy.getTime() - ordenDate.getTime();
-                    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-                    if (diffDays <= 7) {
-                        categoryId = 1;
-                        categoryName = '1. Esta semana';
-                    } else if (diffDays <= 14) {
-                        categoryId = 2;
-                        categoryName = '2. Semana pasada';
-                    } else if (diffDays <= 21) {
-                        categoryId = 3;
-                        categoryName = '3. Hace 3 semanas';
-                    } else if (diffDays <= 60) {
-                        categoryId = 4;
-                        categoryName = '4. Hace más de 1 mes';
-                    } else if (diffDays <= 90) {
-                        categoryId = 5;
-                        categoryName = '5. Hace más de 2 meses';
-                    } else {
-                        categoryId = 6;
-                        categoryName = '6. De 3 meses para atrás';
-                    }
+                const parts = fechaCol.split(' ')[0].split('-');
+                if (parts.length === 3) {
+                    const d = new Date(parts[0], parts[1]-1, parts[2]);
+                    const diff = Math.floor((hoy - d) / (1000 * 60 * 60 * 24));
+                    if (diff <= 7) { categoryId = 1; categoryName = '1. Esta semana'; }
+                    else if (diff <= 14) { categoryId = 2; categoryName = '2. Semana pasada'; }
+                    else if (diff <= 21) { categoryId = 3; categoryName = '3. Hace 3 semanas'; }
+                    else if (diff <= 60) { categoryId = 4; categoryName = '4. Hace más de 1 mes'; }
+                    else if (diff <= 90) { categoryId = 5; categoryName = '5. Hace más de 2 meses'; }
+                    else { categoryId = 6; categoryName = '6. De 3 meses para atrás'; }
                 }
             }
             row._categoryId = categoryId;
             row._categoryName = categoryName;
         });
-        const listEncargados = Array.from(uniqueEncargados).sort();
 
-        // Poblar el select de impresión
-        printEncargado.innerHTML = '<option value="">Todos los Encargados</option>';
-        listEncargados.forEach(enc => {
-            const opt = document.createElement('option');
-            opt.value = enc;
-            opt.textContent = enc;
-            printEncargado.appendChild(opt);
-        });
+        const listEncargados = Array.from(uniqueEncargadosSet).sort();
+        printEncargado.innerHTML = '<option value="">Todos los Encargados</option>' + listEncargados.map(enc => `<option value="${enc}">${enc}</option>`).join('');
 
-        // Ordenar el arreglo primero por Categoría, y luego por "ENCARGADO" alfabéticamente
-        arrayOrders.sort((a, b) => {
-            const catA = a._categoryId || 7;
-            const catB = b._categoryId || 7;
-            if (catA !== catB) return catA - catB;
-
-            const encargadoA = (a['G'] || '').toLowerCase();
-            const encargadoB = (b['G'] || '').toLowerCase();
-            if (encargadoA < encargadoB) return -1;
-            if (encargadoA > encargadoB) return 1;
-            return 0;
-        });
+        arrayOrders.sort((a, b) => (a._categoryId - b._categoryId) || (a['G']||'').localeCompare(b['G']||''));
 
         let currentCategory = null;
         let globalCounter = 1;
 
-        // Ahora renderizamos cada fila ordenada, añadiendo su número de conteo
-        arrayOrders.forEach((row) => {
+        arrayOrders.forEach(row => {
             if (row._categoryName !== currentCategory) {
                 currentCategory = row._categoryName;
                 const trSep = document.createElement('tr');
                 trSep.className = 'separator-row';
-                const tdSep = document.createElement('td');
-                tdSep.colSpan = 12; // Cubrir todas las 12 columnas (1 extra check)
-                tdSep.textContent = currentCategory;
-                trSep.appendChild(tdSep);
+                trSep.innerHTML = `<td colspan="12">${currentCategory}</td>`;
                 tableBody.appendChild(trSep);
             }
 
             const tr = document.createElement('tr');
-            if (row._listo) {
-                tr.classList.add('row-tachada');
-            }
-
-            // Número de fila (Necesitamos sacar 'ot' antes del listener)
+            if (row._listo) tr.classList.add('row-tachada');
             const ot = row['B'];
+            tr.dataset.encargado = row['G'] || 'Sin Asignar';
+            tr.dataset.ot = ot;
 
-            // Columna LISTO
+            // Checkbox Listo
             const tdListo = document.createElement('td');
-            const chkListo = document.createElement('input');
-            chkListo.type = 'checkbox';
-            chkListo.className = 'listo-checkbox';
-            chkListo.style.width = '1.25rem';
-            chkListo.style.height = '1.25rem';
-            chkListo.style.cursor = 'pointer';
-            chkListo.checked = row._listo;
-            chkListo.addEventListener('change', (e) => {
-                if (newSavedVehicles[ot]) {
-                    newSavedVehicles[ot].listo = e.target.checked;
-                }
-                if (e.target.checked) {
-                    tr.classList.add('row-tachada');
-                } else {
-                    tr.classList.remove('row-tachada');
-                }
-            });
-            tdListo.appendChild(chkListo);
             tdListo.style.textAlign = 'center';
+            const chk = document.createElement('input');
+            chk.type = 'checkbox';
+            chk.checked = row._listo;
+            chk.addEventListener('change', (e) => {
+                if (e.target.checked) tr.classList.add('row-tachada');
+                else tr.classList.remove('row-tachada');
+                updateVehicleField(ot, 'listo', e.target.checked);
+            });
+            tdListo.appendChild(chk);
             tr.appendChild(tdListo);
 
-            // Número de fila
-            const numeroIdentificador = globalCounter++;
-
-            // Extraer y formatear datos
-            const fechaCol = row['D'] || ''; // Col D: Fecha de creación
-            // Limpiar " AM"/" PM" para que sea más corto, o dejarla como viene
-            const fechaOrden = fechaCol;
-
-            const encargado = row['G'] || ''; // Col G: Creado por
-            const placa = row['H'] || ''; // Col H: Placa del vehículo
-            const tipoVehi = row['J'] || ''; // Col J: Estilo
-            const marca = row['K'] || ''; // Col K: Marca
-            const linea = row['L'] || ''; // Col L: Modelo
-            const cliente = row['T'] || ''; // Col T: Cliente
-
-            // Lógica "En Taller": Inherit from save or compute
-            const estadoSistema = String(row['V'] || '').toUpperCase();
-            let enTaller = row._savedEnTaller !== undefined ? row._savedEnTaller : 'REVISAR';
-
-            if (estadoSistema === 'ENTREGADO' || estadoSistema === 'FINALIZADO' || estadoSistema === 'FACTURADO') {
-                enTaller = 'NO';
-            }
-
-            const costoOrden = 'Q.' + (row['AO'] || '0.00'); // Col AO: Total
-
-            const observacion = '';
-            const fechaSeguimiento = row._savedFechaSeg || '';
-
-            // Determinar color de la fila basado en 'EN TALLER'
-            if (enTaller === 'SI') {
-                tr.classList.add('row-green');
-            } else if (enTaller === 'NO') {
-                tr.classList.add('row-white');
-            } else if (enTaller === 'REVISAR') {
-                tr.classList.add('row-yellow');
-            } else {
-                tr.classList.add('row-white'); // Blanco por defecto alternativo
-            }
-
-            // Validar si tiene más de 3 meses de antigüedad
-            if (fechaOrden) {
-                const dateParts = fechaOrden.split(' ')[0].split('-');
-                if (dateParts.length === 3) {
-                    const ordenDate = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
-                    const hoy = new Date();
-                    const haceTresMeses = new Date(hoy.getFullYear(), hoy.getMonth() - 3, hoy.getDate());
-                    if (ordenDate < haceTresMeses) {
-                        tr.classList.add('underline-corinto');
-                    }
-                }
-            }
-
-            // --- Construir Celdas ---
-
-            // # (Contador)
-            tr.appendChild(createCell(numeroIdentificador));
-            // OT + Asterisks if reappearing
+            tr.appendChild(createCell(globalCounter++));
             tr.appendChild(createCell(`${ot}${row._asterisks}`));
-            // FECHA ORDEN
-            tr.appendChild(createCell(fechaOrden));
-            // ENCARGADO (Editable)
+            tr.appendChild(createCell(row['D'] || ''));
+
+            // Encargado Select
             const tdEnc = document.createElement('td');
-            const selectEnc = document.createElement('select');
-            selectEnc.className = 'status-select';
+            const selEnc = document.createElement('select');
+            selEnc.className = 'status-select';
             listEncargados.forEach(enc => {
                 const opt = document.createElement('option');
-                opt.value = enc;
-                opt.textContent = enc;
-                if (enc === encargado) opt.selected = true;
-                selectEnc.appendChild(opt);
+                opt.value = enc; opt.textContent = enc;
+                if (enc === row['G']) opt.selected = true;
+                selEnc.appendChild(opt);
             });
-            // Opción vacía o extra si se necesita
-            if (!listEncargados.includes(encargado)) {
-                const opt = document.createElement('option');
-                opt.value = encargado;
-                opt.textContent = encargado || 'Sin Asignar';
-                opt.selected = true;
-                selectEnc.appendChild(opt);
-            }
-
-            // Atributo para filtrado en impresión
-            tr.dataset.encargado = encargado || 'Sin Asignar';
-            tr.dataset.ot = ot; // Set to easily find during save
-
-            selectEnc.addEventListener('change', (e) => {
+            selEnc.addEventListener('change', (e) => {
                 tr.dataset.encargado = e.target.value;
-                if (newSavedVehicles[ot]) {
-                    newSavedVehicles[ot].encargado = e.target.value;
-                }
+                updateVehicleField(ot, 'encargado', e.target.value);
             });
-
-            tdEnc.appendChild(selectEnc);
+            tdEnc.appendChild(selEnc);
             tr.appendChild(tdEnc);
 
-            // PLACA
-            tr.appendChild(createCell(placa));
-            // VEHÍCULO (Marca + Línea)
-            const vehiculoStr = `${marca} ${linea}`.trim();
-            tr.appendChild(createCell(vehiculoStr));
-            // CLIENTE
-            tr.appendChild(createCell(cliente));
+            tr.appendChild(createCell(row['H'] || ''));
+            tr.appendChild(createCell(`${row['K'] || ''} ${row['L'] || ''}`));
+            tr.appendChild(createCell(row['T'] || ''));
 
-            // EN TALLER (Editable / Select)
+            // En Taller Select
             const tdTaller = document.createElement('td');
-            const selectTaller = document.createElement('select');
-            selectTaller.className = 'status-select';
-            ['REVISAR', 'SI', 'NO'].forEach(opt => {
-                const option = document.createElement('option');
-                option.value = opt;
-                option.textContent = opt;
-                if (opt === enTaller) option.selected = true;
-                selectTaller.appendChild(option);
+            const selTaller = document.createElement('select');
+            selTaller.className = 'status-select';
+            const enTaller = row._savedEnTaller || 'REVISAR';
+            ['REVISAR', 'SI', 'NO'].forEach(optStr => {
+                const opt = document.createElement('option');
+                opt.value = optStr; opt.textContent = optStr;
+                if (optStr === enTaller) opt.selected = true;
+                selTaller.appendChild(opt);
             });
-
-            // Cambiar color de fila si cambia el select
-            selectTaller.addEventListener('change', (e) => {
-                const val = e.target.value;
+            selTaller.addEventListener('change', (e) => {
                 tr.classList.remove('row-green', 'row-white', 'row-yellow');
-                if (val === 'SI') tr.classList.add('row-green');
-                else if (val === 'NO') tr.classList.add('row-white');
-                else if (val === 'REVISAR') tr.classList.add('row-yellow');
-
-                if (newSavedVehicles[ot]) {
-                    newSavedVehicles[ot].enTaller = val;
-                }
+                if (e.target.value === 'SI') tr.classList.add('row-green');
+                else if (e.target.value === 'NO') tr.classList.add('row-white');
+                else tr.classList.add('row-yellow');
+                updateVehicleField(ot, 'en_taller', e.target.value);
             });
-            tdTaller.appendChild(selectTaller);
+            tdTaller.appendChild(selTaller);
             tr.appendChild(tdTaller);
+            
+            if (enTaller === 'SI') tr.classList.add('row-green');
+            else if (enTaller === 'NO') tr.classList.add('row-white');
+            else tr.classList.add('row-yellow');
 
-            // COSTO Q EN ORDEN
-            const tdCosto = createCell(costoOrden);
+            const tdCosto = createCell('Q.' + (row['AO'] || '0.00'));
             tdCosto.className = 'col-costo';
             tr.appendChild(tdCosto);
 
-            // OBSERVACION (Editable)
             const tdObs = document.createElement('td');
-            const inputObs = document.createElement('input');
-            inputObs.type = 'text';
-            inputObs.value = observacion;
-            inputObs.className = 'status-select';
-            inputObs.placeholder = 'Añadir observación...';
-            tdObs.appendChild(inputObs);
+            tdObs.innerHTML = `<input type="text" class="status-select" placeholder="Observación...">`;
             tr.appendChild(tdObs);
 
-            // FECHA DE SEGUIMIENTO (Editable / date input)
-            const tdFechaSeg = document.createElement('td');
-            const inputFechaSeg = document.createElement('input');
-            inputFechaSeg.type = 'date';
-            inputFechaSeg.className = 'status-select fecha-seg-input';
-            if (fechaSeguimiento) inputFechaSeg.value = fechaSeguimiento;
-
-            // Re-filtrar si cambiamos la fecha teniendo un filtro activo
-            inputFechaSeg.addEventListener('change', () => {
-                const val = inputFechaSeg.value;
-                if (newSavedVehicles[ot]) {
-                    newSavedVehicles[ot].fechaSeguimiento = val;
-                }
+            const tdFecha = document.createElement('td');
+            const inFecha = document.createElement('input');
+            inFecha.type = 'date'; inFecha.className = 'status-select fecha-seg-input';
+            inFecha.value = row._savedFechaSeg || '';
+            inFecha.addEventListener('change', (e) => {
+                updateVehicleField(ot, 'fecha_seguimiento', e.target.value);
                 applyFilters();
             });
-
-            tdFechaSeg.appendChild(inputFechaSeg);
-            tr.appendChild(tdFechaSeg);
+            tdFecha.appendChild(inFecha);
+            tr.appendChild(tdFecha);
 
             tableBody.appendChild(tr);
         });
 
-        savedVehicles = newSavedVehicles; // Memory update
+        btnSaveState.onclick = async function () {
+            // Guardar o actualizar todos los vehículos actuales en Supabase
+            const updates = arrayOrders.map(row => ({
+                ot: row['B'],
+                encargado: row['G'],
+                en_taller: row._savedEnTaller || 'REVISAR',
+                fecha_seguimiento: row._savedFechaSeg || '',
+                listo: row._listo || false,
+                asteriscos: row._apps || 0,
+                ultima_actualizacion: new Date().toISOString()
+            }));
 
-        // Save state action
-        btnSaveState.onclick = function () {
-            localStorage.setItem('savedVehiclesData', JSON.stringify(savedVehicles));
-            if (chkStep5) chkStep5.checked = true;
-            alert('¡Progreso diario guardado! Los vehículos que ya no aparecieron hoy han sido purgados, y tus datos de En Taller y Encargado fueron respaldados.');
+            const { error } = await _supabase.from('seguimiento_vehiculos').upsert(updates);
+            if (!error) {
+                if (chkStep5) chkStep5.checked = true;
+                alert('¡Sincronización con Supabase completa!');
+            } else {
+                alert('Error al sincronizar: ' + error.message);
+            }
         };
+    }
+
+    async function updateVehicleField(ot, field, value) {
+        const update = { ot, [field]: value, ultima_actualizacion: new Date().toISOString() };
+        await _supabase.from('seguimiento_vehiculos').upsert([update]);
     }
 
     function createCell(text) {
