@@ -116,9 +116,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Si es una carga nueva o no tiene fecha de seguimiento, mostrar si 'Sin Asignar' está marcado
             let dateMatch = false;
             if (!inputDate) {
-                if (showSinFecha) dateMatch = true;
-                // Si acabamos de cargar un Excel, forzamos que se vea al menos algo
-                if (!showHoyVencidas && !showFuturas && !showSinFecha) dateMatch = true;
+                // Forzar que se muestren los sin fecha siempre al cargar para no esconder la tabla
+                dateMatch = true; 
             } else {
                 if (inputDate <= todayStr && showHoyVencidas) dateMatch = true;
                 else if (inputDate > todayStr && showFuturas) dateMatch = true;
@@ -129,8 +128,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 encargadoMatch = rowEncargado === selectedEncargado;
             }
 
-            if (dateMatch && encargadoMatch) row.classList.remove('hidden');
-            else row.classList.add('hidden');
+            if (dateMatch && encargadoMatch) {
+                row.classList.remove('hidden');
+            } else {
+                row.classList.add('hidden');
+            }
         });
 
         // Cleanup empty separators
@@ -146,7 +148,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 sectorHasRows = true;
             }
         });
-        if (currentSectorHeader && !sectorHasRows) currentSectorHeader.classList.add('hidden');
+        if (currentSectorHeader && !sectorHasRows) {
+            currentSectorHeader.classList.add('hidden');
+        }
     }
 
     // Añadir encargado manual
@@ -227,19 +231,28 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const worksheet = workbook.Sheets[firstSheetName];
                 const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: \"A\", defval: \"\" });
 
+                console.log(\"JSON original (primeras 2 filas):\", jsonData.slice(0, 2));
+
                 const filteredRows = jsonData.filter(row => {
-                    const ot = row['B'] || row.ot;
+                    // Validar si la OT está en B o bajo la propiedad ot directamente (dependiendo encabezados)
+                    const ot = row['B'] || row.ot || row['OT'] || row['ot'];
                     return ot && String(ot).trim() !== '';
                 });
 
-                const rowsWithOrigin = filteredRows.map(row => ({ 
-                    ...row, 
-                    _origin: isColorCenter ? 'COLOR_CENTER' : 'PROAUTO' 
-                }));
+                console.log(`Filas válidas después de filtrar OT: ${filteredRows.length}`);
+
+                const rowsWithOrigin = filteredRows.map(row => {
+                    // Normalizar OT a la columna B que espera el renderTable
+                    row['B'] = row['B'] || row.ot || row['OT'] || row['ot'];
+                    return {
+                        ...row,
+                        _origin: isColorCenter ? 'COLOR_CENTER' : 'PROAUTO'
+                    };
+                });
 
                 // Inicializar currentData si no existe
-                if (!currentData) {
-                    currentData = [{ A: 'Header' }];
+                if (!currentData || currentData.length === 0) {
+                    currentData = [{ A: 'Header Placeholder' }];
                 }
 
                 // Obtener OTs existentes para evitar duplicados en la vista actual
@@ -249,19 +262,29 @@ document.addEventListener('DOMContentLoaded', async () => {
                     return !existingOts.has(ot);
                 });
 
+                console.log(`Nuevas filas a agregar: ${newRows.length}`);
+                
                 currentData = currentData.concat(newRows);
 
+                console.log(\"Renderizando tabla con data:\", currentData.length, \"filas\");
                 renderTable(currentData);
+                
                 loadingState.classList.add('hidden');
+                emptyState.classList.add('hidden');
                 tableContainer.classList.remove('hidden');
                 const vTable = document.getElementById('vehicles-table');
-                if (vTable) vTable.classList.remove('hidden');
-                emptyState.classList.add('hidden');
+                if (vTable) {
+                    vTable.classList.remove('hidden');
+                    console.log(\"Tabla mostrada con éxito\");
+                }
                 
-                // Mostrar todos los controles
+                // Mostrar todos los controles (botones, print, etc)
                 document.querySelectorAll('.print-controls, .step-actions, #filter-controls, #btn-save-state').forEach(el => el.classList.remove('hidden'));
                 
+                // Aplicar filtros visuales finales (forzamos que se muestre todo sin fecha)
+                document.querySelector('.date-filter-cb[value=\"sin_fecha\"]').checked = true;
                 applyFilters();
+                
                 if (isColorCenter) { if (chkStep2) chkStep2.checked = true; }
                 else { if (chkStep1) chkStep1.checked = true; }
             } catch (error) {
