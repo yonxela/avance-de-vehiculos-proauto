@@ -52,6 +52,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     appearances: v.asteriscos,
                     observacion: v.observacion || '',
                     origen: v.origen || 'PROAUTO',
+                    placa: v.placa || '',
+                    vehiculo: v.vehiculo || '',
+                    cliente: v.cliente || '',
+                    costo: v.costo || '',
                     lastUpload: v.ultima_actualizacion ? new Date(v.ultima_actualizacion).toLocaleDateString('en-CA') : ''
                 };
             });
@@ -422,9 +426,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             tdEnc.appendChild(selEnc);
             tr.appendChild(tdEnc);
 
-            tr.appendChild(createCell(row['H'] || ''));
-            tr.appendChild(createCell(row._isCloudOnly ? '---' : `${row['K'] || ''} ${row['L'] || ''}`));
-            tr.appendChild(createCell(row['T'] || ''));
+            let valPlaca = row._isCloudOnly ? (row.placa || '') : (row['H'] || row.placa || '');
+            tr.appendChild(createCell(valPlaca));
+            
+            let valVehiculo = row._isCloudOnly ? (row.vehiculo || '---') : `${row['K'] || ''} ${row['L'] || ''}`.trim();
+            if (!valVehiculo) valVehiculo = row.vehiculo || '---';
+            tr.appendChild(createCell(valVehiculo));
+            
+            let valCliente = row._isCloudOnly ? (row.cliente || '') : (row['T'] || row.cliente || '');
+            tr.appendChild(createCell(valCliente));
 
             // En Taller Select
             const tdTaller = document.createElement('td');
@@ -451,7 +461,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             else if (enTaller === 'NO') tr.classList.add('row-white');
             else tr.classList.add('row-yellow');
 
-            const tdCosto = createCell(row._isCloudOnly ? '---' : 'Q.' + (row['AO'] || '0.00'));
+            let valCosto = row._isCloudOnly ? (row.costo || '0.00') : (row['AO'] || row.costo || '0.00');
+            const tdCosto = createCell('Q.' + valCosto);
             tdCosto.className = 'col-costo';
             tr.appendChild(tdCosto);
 
@@ -491,6 +502,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 asteriscos: row._apps || 0,
                 observacion: row._savedObservacion || '',
                 origen: row._origen || 'PROAUTO',
+                placa: row._isCloudOnly ? (row.placa || '') : (row['H'] || row.placa || ''),
+                vehiculo: row._isCloudOnly ? (row.vehiculo || '') : `${row['K'] || ''} ${row['L'] || ''}`.trim() || row.vehiculo || '',
+                cliente: row._isCloudOnly ? (row.cliente || '') : (row['T'] || row.cliente || ''),
+                costo: row._isCloudOnly ? (row.costo || '0.00') : (row['AO'] || row.costo || '0.00'),
                 ultima_actualizacion: new Date().toISOString()
             }));
 
