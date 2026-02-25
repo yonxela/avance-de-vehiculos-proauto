@@ -345,9 +345,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 currentOrigin = row._origen;
                 currentCategory = null; // Reiniciar categoría al cambiar de origen
                 const trOrigin = document.createElement('tr');
-                trOrigin.className = 'separator-row separator-origin';
-                const label = currentOrigin === 'PROAUTO' ? 'TALLER PROAUTO' : 'COLOR CENTER';
-                trOrigin.innerHTML = `<td colspan=\"12\" style=\"background-color: #334155; color: white; text-align: center; font-size: 1.2rem; padding: 1rem;\">\${label}</td>`;
+                const isColorCenter = currentOrigin === 'COLOR_CENTER';
+                trOrigin.className = 'separator-row separator-origin' + (isColorCenter ? ' origin-color-center' : ' origin-proauto');
+                const label = isColorCenter ? 'COLOR CENTER' : 'TALLER PROAUTO';
+                trOrigin.innerHTML = `<td colspan=\"12\">\${label}</td>`;
                 tableBody.appendChild(trOrigin);
             }
 
