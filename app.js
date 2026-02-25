@@ -17,6 +17,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const dateCheckboxes = document.querySelectorAll('.date-filter-cb');
     const btnSaveState = document.getElementById('btn-save-state');
     const btnLoadCloud = document.getElementById('btn-load-cloud');
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const originTabsContainer = document.getElementById('origin-tabs');
 
     // Checklist elements
     const chkStep1 = document.getElementById('chk-step-1');
@@ -28,6 +30,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let customEncargados = [];
     let savedVehicles = {}; // { ot: { data } }
     let currentData = null;
+    let activeOriginTab = 'PROAUTO';
 
     // 1. Cargar datos iniciales de Supabase
     async function initSupabaseData() {
@@ -57,6 +60,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     await initSupabaseData();
+
+    // Lógica para cambio de pestañas (Tabs)
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            tabBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            activeOriginTab = btn.dataset.origin;
+            if (currentData) {
+                renderTable(currentData);
+                applyFilters();
+            }
+        });
+    });
 
     // Botón para ver datos de la nube sin archivo
     btnLoadCloud.addEventListener('click', async () => {
@@ -88,6 +104,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         emptyState.classList.add('hidden');
         tableContainer.classList.remove('hidden');
         filterControls.classList.remove('hidden');
+        originTabsContainer.classList.remove('hidden');
         document.querySelectorAll('.print-controls, #action-guardar').forEach(el => el.classList.remove('hidden'));
         applyFilters();
     });
@@ -97,9 +114,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     printEncargado.addEventListener('change', applyFilters);
 
     function applyFilters() {
-        const showHoyVencidas = document.querySelector('.date-filter-cb[value=\"hoy_vencidas\"]').checked;
-        const showFuturas = document.querySelector('.date-filter-cb[value=\"futuras\"]').checked;
-        const showSinFecha = document.querySelector('.date-filter-cb[value=\"sin_fecha\"]').checked;
+        const showHoyVencidas = document.querySelector('.date-filter-cb[value="hoy_vencidas"]').checked;
+        const showFuturas = document.querySelector('.date-filter-cb[value="futuras"]').checked;
+        const showSinFecha = document.querySelector('.date-filter-cb[value="sin_fecha"]').checked;
         const selectedEncargado = printEncargado.value;
 
         const allRows = tableBody.querySelectorAll('tr');
@@ -147,7 +164,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Añadir encargado manual
     addEncargadoBtn.addEventListener('click', async () => {
-        const nuevoName = prompt(\"Ingresa el nombre del nuevo mecánico o encargado:\");
+        const nuevoName = prompt("Ingresa el nombre del nuevo mecánico o encargado:");
         if (nuevoName && nuevoName.trim() !== '') {
             const cleanName = nuevoName.trim().toUpperCase();
             if (!customEncargados.includes(cleanName)) {
@@ -158,10 +175,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                         renderTable(currentData);
                         applyFilters();
                     }
-                    alert(`¡Encargado \"${cleanName}\" añadido con éxito!`);
+                    alert(`¡Encargado "${cleanName}" añadido con éxito!`);
                 }
             } else {
-                alert(\"Ese encargado ya existe en la lista.\");
+                alert("Ese encargado ya existe en la lista.");
             }
         }
     });
@@ -221,7 +238,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const workbook = XLSX.read(data, { type: 'array' });
                 const firstSheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[firstSheetName];
-                const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: \"A\", defval: \"\" });
+                const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: "A", defval: "" });
 
                 const rowsWithOrigin = jsonData.slice(1).map(row => ({ ...row, _origen: isColorCenter ? 'COLOR_CENTER' : 'PROAUTO' }));
 
@@ -231,16 +248,27 @@ document.addEventListener('DOMContentLoaded', async () => {
                     currentData = [{ A: 'Header Placeholder' }, ...rowsWithOrigin];
                 }
 
+                if (isColorCenter) {
+                    activeOriginTab = 'COLOR_CENTER';
+                    tabBtns[0].classList.remove('active');
+                    tabBtns[1].classList.add('active');
+                } else {
+                    activeOriginTab = 'PROAUTO';
+                    tabBtns[0].classList.add('active');
+                    tabBtns[1].classList.remove('active');
+                }
+
                 renderTable(currentData);
                 loadingState.classList.add('hidden');
                 tableContainer.classList.remove('hidden');
+                originTabsContainer.classList.remove('hidden');
                 document.querySelectorAll('.print-controls, #action-guardar, #filter-controls, #btn-save-state').forEach(el => el.classList.remove('hidden'));
 
                 applyFilters();
                 if (isColorCenter) { if (chkStep2) chkStep2.checked = true; }
                 else { if (chkStep1) chkStep1.checked = true; }
             } catch (error) {
-                alert(\"Error: \" + error.message);
+                alert("Error: " + error.message);
                 loadingState.classList.add('hidden');
                 emptyState.classList.remove('hidden');
             }
@@ -323,43 +351,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
         const listEncargados = Array.from(uniqueEncargadosSet).sort();
-        printEncargado.innerHTML = '<option value=\"\">Todos los Encargados</option>' + listEncargados.map(enc => `<option value=\"\${enc}\">\${enc}</option>`).join('');
+        printEncargado.innerHTML = '<option value="">Todos los Encargados</option>' + listEncargados.map(enc => `<option value="${enc}">${enc}</option>`).join('');
 
-        // Ordenar: 1. Origen (PROAUTO primero), 2. Categoría, 3. Encargado
+        // Filtrar solo los datos que corresponden a la pestaña activa
+        arrayOrders = arrayOrders.filter(row => row._origen === activeOriginTab);
+
+        // Ordenar: 1. Categoría, 2. Encargado
         arrayOrders.sort((a, b) => {
-            if (a._origen !== b._origen) {
-                return a._origen === 'PROAUTO' ? -1 : 1;
-            }
             if (a._categoryId !== b._categoryId) {
                 return a._categoryId - b._categoryId;
             }
             return (a['G'] || a.encargado || '').localeCompare(b['G'] || b.encargado || '');
         });
 
-        let currentOrigin = null;
         let currentCategory = null;
         let globalCounter = 1;
 
         arrayOrders.forEach(row => {
-            // Título de Origen (ProAuto / Color Center)
-            if (row._origen !== currentOrigin) {
-                currentOrigin = row._origen;
-                currentCategory = null; // Reiniciar categoría al cambiar de origen
-                const trOrigin = document.createElement('tr');
-                trOrigin.className = 'separator-row';
-                if (currentOrigin === 'COLOR_CENTER') {
-                    trOrigin.innerHTML = `<td colspan=\"12\" style=\"color: #dc2626; font-size: 1.1rem; padding: 1rem 0.75rem;\">▶ COLOR CENTER ◀</td>`;
-                } else {
-                    trOrigin.innerHTML = `<td colspan=\"12\" style=\"font-size: 1.1rem; padding: 1rem 0.75rem;\">▶ TALLER PROAUTO ◀</td>`;
-                }
-                tableBody.appendChild(trOrigin);
-            }
 
             if (row._categoryName !== currentCategory) {
                 currentCategory = row._categoryName;
                 const trSep = document.createElement('tr');
                 trSep.className = 'separator-row';
-                trSep.innerHTML = `<td colspan=\"12\">\${currentCategory}</td>`;
+                trSep.innerHTML = `<td colspan="12">${currentCategory}</td>`;
                 tableBody.appendChild(trSep);
             }
 
@@ -384,8 +398,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             tr.appendChild(tdListo);
 
             tr.appendChild(createCell(globalCounter++));
-            tr.appendChild(createCell(`\${ot}\${row._asterisks || ''}`));
-            tr.appendChild(createCell(row['D'] || row.lastUpload || ''));
+            tr.appendChild(createCell(`${ot}${row._asterisks || ''}`));
+
+            // Quitar la hora de la fecha (ej. "2026-02-12 02:31:25 PM" -> "2026-02-12")
+            let rawStrDate = row['D'] || row.lastUpload || '';
+            let dateOnly = rawStrDate.includes(' ') ? rawStrDate.split(' ')[0] : rawStrDate;
+            tr.appendChild(createCell(dateOnly));
 
             // Encargado Select
             const tdEnc = document.createElement('td');
@@ -405,7 +423,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             tr.appendChild(tdEnc);
 
             tr.appendChild(createCell(row['H'] || ''));
-            tr.appendChild(createCell(row._isCloudOnly ? '---' : `\${row['K'] || ''} \${row['L'] || ''}`));
+            tr.appendChild(createCell(row._isCloudOnly ? '---' : `${row['K'] || ''} ${row['L'] || ''}`));
             tr.appendChild(createCell(row['T'] || ''));
 
             // En Taller Select
