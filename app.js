@@ -86,6 +86,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         emptyState.classList.add('hidden');
         tableContainer.classList.remove('hidden');
+        const vTable = document.getElementById('vehicles-table');
+        if (vTable) vTable.classList.remove('hidden');
         filterControls.classList.remove('hidden');
         document.querySelectorAll('.print-controls, #action-guardar').forEach(el => el.classList.remove('hidden'));
         applyFilters();
@@ -111,9 +113,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             const inputDate = inputDateEle ? inputDateEle.value : '';
             const rowEncargado = row.dataset.encargado || '';
 
+            // Si es una carga nueva o no tiene fecha de seguimiento, mostrar si 'Sin Asignar' está marcado
             let dateMatch = false;
             if (!inputDate) {
                 if (showSinFecha) dateMatch = true;
+                // Si acabamos de cargar un Excel, forzamos que se vea al menos algo
+                if (!showHoyVencidas && !showFuturas && !showSinFecha) dateMatch = true;
             } else {
                 if (inputDate <= todayStr && showHoyVencidas) dateMatch = true;
                 else if (inputDate > todayStr && showFuturas) dateMatch = true;
@@ -249,6 +254,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 renderTable(currentData);
                 loadingState.classList.add('hidden');
                 tableContainer.classList.remove('hidden');
+                const vTable = document.getElementById('vehicles-table');
+                if (vTable) vTable.classList.remove('hidden');
                 emptyState.classList.add('hidden');
                 
                 // Mostrar todos los controles
