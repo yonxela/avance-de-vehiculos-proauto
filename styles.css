@@ -1,0 +1,545 @@
+/* Variables & Design System */
+:root {
+    --bg-color: #f3f4f6;
+    --table-header-bg: #bb3f3f;
+    /* Red header from screenshot */
+    --table-header-color: #ffffff;
+    --border-color: #e5e7eb;
+    --text-primary: #111827;
+    --text-secondary: #4b5563;
+
+    /* Row statuses */
+    --row-green: #d1e7dd;
+    --row-yellow: #fff3cd;
+    --row-orange: #f8d7da;
+    /* Using red/orange for some statuses */
+    --row-white: #ffffff;
+
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+
+    --radius-md: 0.375rem;
+    --radius-lg: 0.5rem;
+}
+
+body {
+    margin: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-primary);
+    line-height: 1.5;
+}
+
+.app-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+/* Header */
+.app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 2rem;
+    padding: 1.5rem;
+    background: white;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    flex-wrap: wrap;
+    gap: 1.5rem;
+}
+
+.header-left {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 2rem;
+    flex: 1;
+}
+
+.title-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.app-logo {
+    height: 70px;
+    width: auto;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+}
+
+.header-content h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: 0 0 0.5rem 0;
+}
+
+.header-content p {
+    color: var(--text-secondary);
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+.print-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.print-encargado-box {
+    display: flex;
+    align-items: center;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+}
+
+.print-encargado-box .print-select {
+    border: none;
+    border-right: 1px solid var(--border-color);
+    border-radius: 0;
+    background-color: #f8fafc;
+}
+
+.print-encargado-box .print-btn {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    margin: 0;
+}
+
+/* Checklist */
+.checklist-container {
+    background: white;
+    padding: 1.5rem;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 2rem;
+}
+
+.checklist-container h3 {
+    margin-top: 0;
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+    color: var(--text-primary);
+}
+
+.workflow-checklist {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.checklist-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.checklist-item:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.checklist-item label {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    transition: color 0.2s;
+}
+
+.checklist-item label:hover {
+    color: var(--text-primary);
+}
+
+.checklist-item input[type="checkbox"] {
+    width: 1.25rem;
+    height: 1.25rem;
+    cursor: pointer;
+    accent-color: #10b981;
+}
+
+.step-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.btn-sm {
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+}
+
+/* Upload button */
+.hidden-input {
+    display: none;
+}
+
+.upload-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background-color: var(--table-header-bg);
+    color: white;
+    padding: 0.75rem 1.25rem;
+    border-radius: var(--radius-md);
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s;
+    box-shadow: var(--shadow-sm);
+}
+
+.upload-btn:hover {
+    background-color: #a33232;
+    transform: translateY(-1px);
+}
+
+.upload-btn:active {
+    transform: translateY(0);
+}
+
+/* Main Table Container */
+.table-container {
+    background: white;
+    padding: 1rem;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+    position: relative;
+}
+
+.table-scroll {
+    overflow-x: auto;
+    width: 100%;
+}
+
+/* Table Design */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 1200px;
+}
+
+thead th {
+    background-color: var(--table-header-bg);
+    color: var(--table-header-color);
+    padding: 0.75rem;
+    text-align: left;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 2px solid #8e2a2a;
+    white-space: nowrap;
+}
+
+tbody td {
+    padding: 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
+    font-size: 0.9rem;
+    vertical-align: middle;
+}
+
+tbody tr:last-child td {
+    border-bottom: none;
+}
+
+tbody td:last-child {
+    border-right: none;
+}
+
+/* Custom Row Backgrounds (Dynamic based on data) */
+.row-green {
+    background-color: var(--row-green);
+}
+
+.row-white {
+    background-color: var(--row-white);
+}
+
+.row-yellow {
+    background-color: var(--row-yellow);
+}
+
+.row-orange {
+    background-color: var(--row-orange);
+}
+
+/* Estilo cuando el check está marcado */
+.row-tachada td {
+    background-color: #e5e7eb !important;
+    /* Gris claro */
+    color: #6b7280 !important;
+    /* Texto gris oscuro */
+}
+
+/* Aplicar tachado y opacidad a todo MENOS la última columna (Fecha de seguimiento) */
+.row-tachada td:not(:last-child) {
+    text-decoration: line-through;
+    opacity: 0.6;
+}
+
+/* La última columna (Fecha de Seguimiento) no se tacha y se ve normal */
+.row-tachada td:last-child {
+    background-color: #f9fafb !important;
+    /* Un poco normal / resaltado */
+    opacity: 1 !important;
+}
+
+/* Category Separator Row */
+.separator-row td {
+    background-color: #f1f5f9;
+    font-weight: 700;
+    color: #334155;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    padding: 1rem 0.75rem;
+    border-bottom: 2px solid #cbd5e1;
+    border-top: 2px solid #cbd5e1;
+}
+
+/* Common status selects/inputs */
+.status-select {
+    padding: 0.25rem;
+    border-radius: 4px;
+    border: 1px solid transparent;
+    background-color: rgba(255, 255, 255, 0.7);
+    font-family: inherit;
+    font-size: inherit;
+    width: 100%;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.status-select:focus,
+.status-select:hover {
+    border-color: #cbd5e1;
+    background-color: #fff;
+    outline: none;
+}
+
+/* Empty State */
+.hidden {
+    display: none !important;
+}
+
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4rem 2rem;
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+.empty-icon {
+    color: #9ca3af;
+    margin-bottom: 1rem;
+}
+
+.empty-state p {
+    font-size: 1.125rem;
+    font-weight: 500;
+    margin: 0 0 0.5rem 0;
+    color: var(--text-primary);
+}
+
+.empty-subtitle {
+    font-size: 0.95rem;
+    max-width: 300px;
+}
+
+#loading {
+    padding: 2rem;
+    text-align: center;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+/* Specific column styling */
+th.col-costo,
+td.col-costo {
+    width: 80px;
+    max-width: 120px;
+    min-width: 80px;
+    white-space: normal;
+    text-align: center;
+}
+
+/* Antigüedad de la orden */
+.underline-corinto td {
+    text-decoration: underline;
+    text-decoration-color: #8c001a;
+    /* Color corinto */
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+.print-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+select.print-select {
+    border: 1px solid var(--border-color);
+    padding: 0.65rem;
+    background-color: white;
+}
+
+.print-btn {
+    background-color: #4b5563;
+}
+
+.print-btn:hover {
+    background-color: #374151;
+}
+
+.filter-checkboxes {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.9rem;
+    background-color: white;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+}
+
+.filter-checkboxes label {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+.filter-label {
+    font-weight: 600;
+    margin-right: 0.5rem;
+}
+
+/* Print Styles */
+@media print {
+    body {
+        margin: 0;
+        padding: 0;
+        background-color: white;
+    }
+
+    .app-header,
+    .empty-state,
+    .checklist-container,
+    #loading {
+        display: none !important;
+    }
+
+    .app-container {
+        padding: 0;
+    }
+
+    .table-container {
+        box-shadow: none;
+        padding: 0;
+    }
+
+    @page {
+        margin: 1cm;
+        size: landscape;
+    }
+
+    th {
+        background-color: #e5e7eb !important;
+        color: black !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        border-bottom: 2px solid #000;
+    }
+
+    table,
+    th,
+    td {
+        border: 1px solid #d1d5db;
+    }
+
+    .row-green td {
+        background-color: #d1e7dd !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    .row-yellow td {
+        background-color: #fff3cd !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    .row-white td {
+        background-color: #ffffff !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    tr.underline-corinto td {
+        color: #8c001a !important;
+        font-weight: bold;
+    }
+
+    tr.hidden-print {
+        display: none !important;
+    }
+
+    /* Print Compact no-color mode (Step 3) */
+    body.print-bw-compact table th,
+    body.print-bw-compact table td {
+        padding: 0.3rem 0.4rem !important;
+        font-size: 0.8rem !important;
+    }
+
+    body.print-bw-compact .row-green td,
+    body.print-bw-compact .row-yellow td,
+    body.print-bw-compact .row-white td {
+        background-color: #ffffff !important;
+        color: #000 !important;
+    }
+
+    body.print-bw-compact tr.underline-corinto td {
+        color: #000 !important;
+        font-weight: normal !important;
+    }
+
+    select,
+    input {
+        border: none;
+        appearance: none;
+        -moz-appearance: none;
+        -webkit-appearance: none;
+        background: transparent !important;
+        padding: 0;
+        color: inherit;
+        font-family: inherit;
+        font-size: inherit;
+        pointer-events: none;
+    }
+}
