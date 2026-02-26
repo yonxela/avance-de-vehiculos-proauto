@@ -56,6 +56,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     vehiculo: v.vehiculo || '',
                     cliente: v.cliente || '',
                     costo: v.costo || '',
+                    fecha_orden: v.fecha_orden || '',
                     lastUpload: v.ultima_actualizacion ? new Date(v.ultima_actualizacion).toLocaleDateString('en-CA') : ''
                 };
             });
@@ -93,7 +94,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             cloudData.push({
                 'B': v.ot,
                 'G': v.encargado,
-                'D': v.lastUpload,
+                'D': v.fecha_orden || '',
                 'V': v.enTaller === 'NO' ? 'FINALIZADO' : 'PENDIENTE',
                 '_isCloudOnly': true,
                 '_origen': v.origen || 'PROAUTO',
@@ -334,7 +335,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             // Categoría
-            const fechaCol = row['D'] || row.lastUpload || '';
+            const fechaCol = row['D'] || row.fecha_orden || '';
             let categoryId = 7;
             let categoryName = 'Otras órdenes';
             if (fechaCol && fechaCol.includes('-')) {
@@ -405,7 +406,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             tr.appendChild(createCell(`${ot}${row._asterisks || ''}`));
 
             // Quitar la hora de la fecha (ej. "2026-02-12 02:31:25 PM" -> "2026-02-12")
-            let rawStrDate = row['D'] || row.lastUpload || '';
+            let rawStrDate = row['D'] || row.fecha_orden || '';
             let dateOnly = rawStrDate.includes(' ') ? rawStrDate.split(' ')[0] : rawStrDate;
             tr.appendChild(createCell(dateOnly));
 
@@ -506,6 +507,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 vehiculo: row._isCloudOnly ? (row.vehiculo || '') : `${row['K'] || ''} ${row['L'] || ''}`.trim() || row.vehiculo || '',
                 cliente: row._isCloudOnly ? (row.cliente || '') : (row['T'] || row.cliente || ''),
                 costo: row._isCloudOnly ? (row.costo || '0.00') : (row['AO'] || row.costo || '0.00'),
+                fecha_orden: row._isCloudOnly ? (row.fecha_orden || '') : (row['D'] || row.fecha_orden || ''),
                 ultima_actualizacion: new Date().toISOString()
             }));
 
