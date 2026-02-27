@@ -1,3 +1,4 @@
+// Versión corregida v1.1 - 2026-02-27
 const SUPABASE_URL = 'https://rxrodfskmvldozpznyrp.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_rm-U3aeXydu4W0wdSMLW5w_I4LIW5MO';
 const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
