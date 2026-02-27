@@ -98,7 +98,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 'V': v.enTaller === 'NO' ? 'FINALIZADO' : 'PENDIENTE',
                 '_isCloudOnly': true,
                 '_origen': v.origen || 'PROAUTO',
-                '_origin': v.origen || 'PROAUTO',
                 ...v
             });
         });
@@ -247,11 +246,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 const rowsWithOrigin = jsonData.slice(1).map(row => ({ ...row, _origen: isColorCenter ? 'COLOR_CENTER' : 'PROAUTO' }));
 
-                if (isColorCenter && currentData) {
-                    currentData = currentData.concat(rowsWithOrigin);
-                } else {
-                    currentData = [{ A: 'Header Placeholder' }, ...rowsWithOrigin];
+                if (!currentData) {
+                    currentData = [{ A: 'Header Placeholder' }];
                 }
+
+                // Filtrar currentData para remover filas del mismo origen que se está subiendo para "actualizar"
+                currentData = currentData.filter(row => !row._origen || row._origen !== (isColorCenter ? 'COLOR_CENTER' : 'PROAUTO'));
+                currentData = currentData.concat(rowsWithOrigin);
 
                 if (isColorCenter) {
                     activeOriginTab = 'COLOR_CENTER';
@@ -358,11 +359,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         const listEncargados = Array.from(uniqueEncargadosSet).sort();
         printEncargado.innerHTML = '<option value="">Todos los Encargados</option>' + listEncargados.map(enc => `<option value="${enc}">${enc}</option>`).join('');
 
-        // Filtrar solo los datos que corresponden a la pestaña activa
-        arrayOrders = arrayOrders.filter(row => row._origen === activeOriginTab);
+        // Filtrar solo los datos que corresponden a la pestaña activa para mostrar en la UI
+        const filteredToRender = arrayOrders.filter(row => row._origen === activeOriginTab);
 
         // Ordenar: 1. Categoría, 2. Encargado
-        arrayOrders.sort((a, b) => {
+        filteredToRender.sort((a, b) => {
             if (a._categoryId !== b._categoryId) {
                 return a._categoryId - b._categoryId;
             }
@@ -372,7 +373,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         let currentCategory = null;
         let globalCounter = 1;
 
-        arrayOrders.forEach(row => {
+        filteredToRender.forEach(row => {
 
             if (row._categoryName !== currentCategory) {
                 currentCategory = row._categoryName;
@@ -397,7 +398,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             chk.addEventListener('change', (e) => {
                 if (e.target.checked) tr.classList.add('row-tachada');
                 else tr.classList.remove('row-tachada');
-                updateVehicleField(ot, 'listo', e.target.checked);
+                updateVehicleField(ot, 'listo', e.target.checked, row._origen);
             });
             tdListo.appendChild(chk);
             tr.appendChild(tdListo);
@@ -422,18 +423,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             selEnc.addEventListener('change', (e) => {
                 tr.dataset.encargado = e.target.value;
-                updateVehicleField(ot, 'encargado', e.target.value);
+                updateVehicleField(ot, 'encargado', e.target.value, row._origen);
             });
             tdEnc.appendChild(selEnc);
             tr.appendChild(tdEnc);
 
             let valPlaca = row._isCloudOnly ? (row.placa || '') : (row['H'] || row.placa || '');
             tr.appendChild(createCell(valPlaca));
-            
+
             let valVehiculo = row._isCloudOnly ? (row.vehiculo || '---') : `${row['K'] || ''} ${row['L'] || ''}`.trim();
             if (!valVehiculo) valVehiculo = row.vehiculo || '---';
             tr.appendChild(createCell(valVehiculo));
-            
+
             let valCliente = row._isCloudOnly ? (row.cliente || '') : (row['T'] || row.cliente || '');
             tr.appendChild(createCell(valCliente));
 
@@ -453,7 +454,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (e.target.value === 'SI') tr.classList.add('row-green');
                 else if (e.target.value === 'NO') tr.classList.add('row-white');
                 else tr.classList.add('row-yellow');
-                updateVehicleField(ot, 'en_taller', e.target.value);
+                updateVehicleField(ot, 'en_taller', e.target.value, row._origen);
             });
             tdTaller.appendChild(selTaller);
             tr.appendChild(tdTaller);
@@ -473,7 +474,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             inObs.placeholder = 'Observación...';
             inObs.value = row._savedObservacion || '';
             inObs.addEventListener('change', (e) => {
-                updateVehicleField(ot, 'observacion', e.target.value);
+                updateVehicleField(ot, 'observacion', e.target.value, row._origen);
             });
             tdObs.appendChild(inObs);
             tr.appendChild(tdObs);
@@ -483,7 +484,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             inFecha.type = 'date'; inFecha.className = 'status-select fecha-seg-input';
             inFecha.value = row._savedFechaSeg || '';
             inFecha.addEventListener('change', (e) => {
-                updateVehicleField(ot, 'fecha_seguimiento', e.target.value);
+                updateVehicleField(ot, 'fecha_seguimiento', e.target.value, row._origen);
                 applyFilters();
             });
             tdFecha.appendChild(inFecha);
@@ -493,7 +494,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
         btnSaveState.onclick = async function () {
-            // Guardar o actualizar todos los vehículos actuales en Supabase
+            // Guardar o actualizar TODOS los vehículos cargados (independientemente de la pestaña)
             const updates = arrayOrders.map(row => ({
                 ot: row['B'] || row.ot,
                 encargado: row['G'] || row.encargado,
@@ -521,8 +522,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
     }
 
-    async function updateVehicleField(ot, field, value) {
-        const update = { ot, [field]: value, ultima_actualizacion: new Date().toISOString() };
+    async function updateVehicleField(ot, field, value, origin) {
+        const update = { ot, [field]: value, origen: origin, ultima_actualizacion: new Date().toISOString() };
         await _supabase.from('seguimiento_vehiculos').upsert([update]);
     }
 
