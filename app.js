@@ -42,10 +42,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         const { data: encData } = await _supabase.from('configuracion_encargados').select('nombre');
         if (encData) customEncargados = encData.map(e => e.nombre);
 
-        // Cargar vehículos guardados (ascending true garantiza que el .forEach deje el más reciente al final)
-        const { data: vehData } = await _supabase.from('seguimiento_vehiculos').select('*').order('ultima_actualizacion', { ascending: true });
+        // Extraer los 5000 vehículos más recientes para superar cualquier límite básico
+        const { data: vehData } = await _supabase
+            .from('seguimiento_vehiculos')
+            .select('*')
+            .order('ultima_actualizacion', { ascending: false })
+            .limit(5000);
+
         if (vehData) {
-            vehData.forEach(v => {
+            // Revertir el orden para iterar desde el más viejo cargado hacia el más nuevo
+            // Así, el registro final en savedVehicles[v.ot] siempre será la modificación más reciente
+            vehData.reverse().forEach(v => {
                 savedVehicles[v.ot] = {
                     ot: v.ot,
                     encargado: v.encargado,
@@ -649,6 +656,27 @@ document.addEventListener('DOMContentLoaded', async () => {
             const { error } = await _supabase.from('seguimiento_vehiculos').upsert(updates);
             if (!error) {
                 if (chkStep5) chkStep5.checked = true;
+
+                // Actualizar la caché local para no perder los cambios si no refrescamos la página
+                updates.forEach(u => {
+                    savedVehicles[u.ot] = {
+                        ot: u.ot,
+                        encargado: u.encargado,
+                        enTaller: u.en_taller,
+                        fechaSeguimiento: u.fecha_seguimiento,
+                        listo: u.listo,
+                        appearances: u.asteriscos,
+                        observacion: u.observacion,
+                        origen: u.origen,
+                        placa: u.placa,
+                        vehiculo: u.vehiculo,
+                        cliente: u.cliente,
+                        costo: u.costo,
+                        fecha_orden: u.fecha_orden,
+                        lastUpload: u.ultima_actualizacion ? new Date(u.ultima_actualizacion).toLocaleDateString('en-CA') : ''
+                    };
+                });
+
                 alert('¡Sincronización con Supabase completa!');
             } else {
                 alert('Error al sincronizar: ' + error.message);
