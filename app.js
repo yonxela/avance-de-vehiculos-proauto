@@ -42,8 +42,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const { data: encData } = await _supabase.from('configuracion_encargados').select('nombre');
         if (encData) customEncargados = encData.map(e => e.nombre);
 
-        // Cargar vehículos guardados
-        const { data: vehData } = await _supabase.from('seguimiento_vehiculos').select('*').order('ultima_actualizacion', { ascending: false });
+        // Cargar vehículos guardados (ascending true garantiza que el .forEach deje el más reciente al final)
+        const { data: vehData } = await _supabase.from('seguimiento_vehiculos').select('*').order('ultima_actualizacion', { ascending: true });
         if (vehData) {
             vehData.forEach(v => {
                 savedVehicles[v.ot] = {
