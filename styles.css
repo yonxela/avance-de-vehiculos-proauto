@@ -294,6 +294,15 @@ body {
     border-color: #cbd5e1;
 }
 
+.stat-total {
+    border: 2px solid #bb3f3f;
+    background: #fdf2f2;
+}
+
+.stat-total .stat-name {
+    color: #bb3f3f;
+}
+
 .stat-name {
     font-size: 0.85rem;
     font-weight: 600;
