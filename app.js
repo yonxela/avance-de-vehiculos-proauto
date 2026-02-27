@@ -101,13 +101,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Convertir savedVehicles a un formato compatible con renderTable
         const cloudData = [{}]; // Fila vacía para simular el header del Excel
         Object.values(savedVehicles).forEach(v => {
-            if (v.enTaller === 'NO') return; // Saltar los que ya fueron operados y sacados
+            if (v.enTaller === 'ARCHIVADO') return; // Saltar los que ya fueron operados y sacados del Excel
 
             cloudData.push({
                 'B': v.ot,
                 'G': v.encargado,
                 'D': v.fecha_orden || '',
-                'V': v.enTaller === 'NO' ? 'FINALIZADO' : 'PENDIENTE',
+                'V': v.enTaller === 'ARCHIVADO' ? 'FINALIZADO' : 'PENDIENTE',
                 '_isCloudOnly': true,
                 '_origen': v.origen || 'PROAUTO',
                 ...v
@@ -632,12 +632,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             // (esto significa que ya fueron operados/sacados del sistema)
             Object.values(savedVehicles).forEach(sv => {
                 const alreadyIncluded = updates.some(u => String(u.ot).trim() === String(sv.ot).trim());
-                // Si la sucursal fue cargada hoy, pero este vehículo no vino en el reporte, lo marcamos como 'NO' en taller
-                if (uploadedOrigins.has(sv.origen) && !alreadyIncluded && sv.enTaller !== 'NO') {
+                // Si la sucursal fue cargada hoy, pero este vehículo no vino en el reporte, lo marcamos como 'ARCHIVADO'
+                if (uploadedOrigins.has(sv.origen) && !alreadyIncluded && sv.enTaller !== 'ARCHIVADO') {
                     updates.push({
                         ot: sv.ot,
                         encargado: sv.encargado,
-                        en_taller: 'NO',
+                        en_taller: 'ARCHIVADO',
                         fecha_seguimiento: sv.fechaSeguimiento,
                         listo: sv.listo,
                         asteriscos: sv.appearances,
