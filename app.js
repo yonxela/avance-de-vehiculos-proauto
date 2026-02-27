@@ -10,7 +10,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const loadingState = document.getElementById('loading');
     const uploadInputProAuto = document.getElementById('excel-upload-proauto');
     const uploadInputColor = document.getElementById('excel-upload-color');
-    const printEncargado = document.getElementById('print-encargado');
     const printBtn = document.getElementById('print-btn');
     const printNormalBtn = document.getElementById('print-normal-btn');
     const addEncargadoBtn = document.getElementById('add-encargado-btn');
@@ -34,6 +33,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let currentData = null;
     let activeOriginTab = 'PROAUTO';
     let uploadedOrigins = new Set();
+    let currentFilterEncargado = '';
 
     // 1. Cargar datos iniciales de Supabase
     async function initSupabaseData() {
@@ -121,13 +121,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Manejar filtro de fechas y encargado
     dateCheckboxes.forEach(cb => cb.addEventListener('change', applyFilters));
-    printEncargado.addEventListener('change', applyFilters);
 
     function applyFilters() {
         const showHoyVencidas = document.querySelector('.date-filter-cb[value="hoy_vencidas"]').checked;
         const showFuturas = document.querySelector('.date-filter-cb[value="futuras"]').checked;
         const showSinFecha = document.querySelector('.date-filter-cb[value="sin_fecha"]').checked;
-        const selectedEncargado = printEncargado.value;
+        const selectedEncargado = currentFilterEncargado;
 
         const allRows = tableBody.querySelectorAll('tr');
         const todayStr = new Date().toLocaleDateString('en-CA');
@@ -205,31 +204,124 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     printBtn.addEventListener('click', () => {
-        const selectedEncargado = printEncargado.value;
-        const allRows = tableBody.querySelectorAll('tr');
-        if (!selectedEncargado) {
-            alert('Por favor selecciona un encargado.');
-            return;
-        }
+        const allRows = tableBody.querySelectorAll('tr:not(.separator-row)');
+        const encargadosSet = new Set();
 
         allRows.forEach(row => {
-            if (!row.classList.contains('separator-row') && row.dataset.encargado !== selectedEncargado) {
-                row.classList.add('hidden-print');
-            } else {
-                row.classList.remove('hidden-print');
+            if (!row.classList.contains('hidden')) {
+                const enc = row.dataset.encargado;
+                if (enc) encargadosSet.add(enc);
             }
         });
 
+        const activeEncargados = Array.from(encargadosSet).sort();
+        if (activeEncargados.length === 0) {
+            alert('No hay vehículos para imprimir en la vista actual.');
+            return;
+        }
+
+        // Crear contenedor temporal para la impresión general
+        const printWrapper = document.createElement('div');
+        printWrapper.id = 'print-multi-container';
+
+        activeEncargados.forEach((enc) => {
+            const pageDiv = document.createElement('div');
+            pageDiv.className = 'print-page';
+
+            const title = document.createElement('h2');
+            title.textContent = `Encargado: ${enc}`;
+            title.style.marginTop = '0';
+            pageDiv.appendChild(title);
+
+            const clonedTable = document.getElementById('vehicles-table').cloneNode(true);
+            clonedTable.classList.remove('hidden');
+            const tbody = clonedTable.querySelector('tbody');
+            tbody.innerHTML = ''; // Limpiar filas clonadas
+
+            let currentCat = null;
+            let currentCatSeparator = null;
+
+            allRows.forEach(originalRow => {
+                if (!originalRow.classList.contains('hidden') && originalRow.dataset.encargado === enc) {
+                    const rowCat = originalRow.previousElementSibling;
+                    // Agregar separador de categoría si no lo hemos agregado ya para este empleado
+                    if (rowCat && rowCat.classList.contains('separator-row') && (!currentCatSeparator || currentCatSeparator.textContent !== rowCat.textContent)) {
+                        tbody.appendChild(rowCat.cloneNode(true));
+                        currentCatSeparator = rowCat;
+                    }
+
+                    const clonedRow = originalRow.cloneNode(true);
+
+                    // Asegurarnos que en la impresión salga el valor actual de los dropdowns como texto plano, o solo el color
+                    // Como .row-green, .row-white etc controlan el color, no necesitamos hacer los selects texto, 
+                    // pero para que no sea editable podemos quitarlos si queremos, por ahora clonamos igual que la impresión original
+
+                    // Set check list value
+                    const rawChk = originalRow.querySelector('input[type="checkbox"]');
+                    const clonedChk = clonedRow.querySelector('input[type="checkbox"]');
+                    if (rawChk && clonedChk) clonedChk.checked = rawChk.checked;
+
+                    // Reemplazar selects por texto para que se imprima limpio   
+                    const selects = clonedRow.querySelectorAll('select');
+                    const origSelects = originalRow.querySelectorAll('select');
+                    selects.forEach((sel, i) => {
+                        const val = origSelects[i].options[origSelects[i].selectedIndex].text;
+                        const span = document.createElement('span');
+                        span.textContent = val;
+                        span.style.fontWeight = 'bold';
+                        sel.parentNode.replaceChild(span, sel);
+                    });
+
+                    // Inputs fecha
+                    const inputs = clonedRow.querySelectorAll('input[type="date"], input[type="text"]');
+                    const origInputs = originalRow.querySelectorAll('input[type="date"], input[type="text"]');
+                    inputs.forEach((inp, i) => {
+                        if (inp.type !== 'checkbox') {
+                            const val = origInputs[i].value;
+                            const span = document.createElement('span');
+                            span.textContent = val;
+                            inp.parentNode.replaceChild(span, inp);
+                        }
+                    });
+
+                    tbody.appendChild(clonedRow);
+                }
+            });
+
+            pageDiv.appendChild(clonedTable);
+            printWrapper.appendChild(pageDiv);
+        });
+
+        document.body.appendChild(printWrapper);
+        const appContainer = document.querySelector('.app-container');
+        appContainer.classList.add('hidden-print');
+
+        // Estilos de impresión para multi-página
+        const printStyles = document.createElement('style');
+        printStyles.id = 'print-multi-styles';
+        printStyles.innerHTML = `
+            @media print {
+                .hidden-print { display: none !important; }
+                .print-page { page-break-after: always; padding-top: 1cm; }
+                .print-page:last-child { page-break-after: auto; }
+            }
+        `;
+        document.head.appendChild(printStyles);
+
         if (chkStep4) chkStep4.checked = true;
         document.body.classList.add('print-bw-compact');
+
         setTimeout(() => {
             window.print();
             window.addEventListener('afterprint', () => {
                 document.body.classList.remove('print-bw-compact');
-                allRows.forEach(row => row.classList.remove('hidden-print'));
+                appContainer.classList.remove('hidden-print');
+                printWrapper.remove();
+                printStyles.remove();
             }, { once: true });
-        }, 100);
+        }, 300);
     });
+
 
     // Subida de Excel
     function handleExcelUpload(e, isColorCenter) {
@@ -366,7 +458,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
         const listEncargados = Array.from(uniqueEncargadosSet).sort();
-        printEncargado.innerHTML = '<option value="">Todos los Encargados</option>' + listEncargados.map(enc => `<option value="${enc}">${enc}</option>`).join('');
+
 
         // Filtrar solo los datos que corresponden a la pestaña activa para mostrar en la UI
         const filteredToRender = arrayOrders.filter(row => row._origen === activeOriginTab);
@@ -593,20 +685,30 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Agregar tarjeta de TOTAL al inicio
         const totalCard = document.createElement('div');
-        totalCard.className = 'stat-card stat-total';
+        totalCard.className = `stat-card stat-total ${currentFilterEncargado === '' ? 'active-filter' : ''}`;
         totalCard.innerHTML = `
             <span class="stat-name">TOTAL VIGENTES</span>
             <span class="stat-count">${totalVehicles}</span>
         `;
+        totalCard.addEventListener('click', () => {
+            currentFilterEncargado = '';
+            applyFilters();
+            renderStats(filteredData);
+        });
         statsSummary.appendChild(totalCard);
 
         sortedEncargados.forEach(enc => {
             const card = document.createElement('div');
-            card.className = 'stat-card';
+            card.className = `stat-card ${currentFilterEncargado === enc ? 'active-filter' : ''}`;
             card.innerHTML = `
                 <span class="stat-name">${enc}</span>
                 <span class="stat-count">${counts[enc]}</span>
             `;
+            card.addEventListener('click', () => {
+                currentFilterEncargado = enc;
+                applyFilters();
+                renderStats(filteredData);
+            });
             statsSummary.appendChild(card);
         });
     }
