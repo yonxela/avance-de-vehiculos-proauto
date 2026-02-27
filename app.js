@@ -665,13 +665,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         statsSummary.innerHTML = '';
         const counts = {};
 
-        // Contar vehículos que están en taller (cualquiera que no sea explícitamente 'NO')
+        // Contar TODOS los vehículos asignados al encargado que aparecen en este reporte
         filteredData.forEach(row => {
-            const status = row._savedEnTaller || 'REVISAR';
-            if (status !== 'NO') {
-                const enc = (row['G'] || row.encargado || 'SIN ASIGNAR').toString().trim().toUpperCase();
-                counts[enc] = (counts[enc] || 0) + 1;
-            }
+            const enc = (row['G'] || row.encargado || 'SIN ASIGNAR').toString().trim().toUpperCase();
+            counts[enc] = (counts[enc] || 0) + 1;
         });
 
         const sortedEncargados = Object.keys(counts).sort();
@@ -687,7 +684,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const totalCard = document.createElement('div');
         totalCard.className = `stat-card stat-total ${currentFilterEncargado === '' ? 'active-filter' : ''}`;
         totalCard.innerHTML = `
-            <span class="stat-name">TOTAL VIGENTES</span>
+            <span class="stat-name">TOTAL</span>
             <span class="stat-count">${totalVehicles}</span>
         `;
         totalCard.addEventListener('click', () => {
