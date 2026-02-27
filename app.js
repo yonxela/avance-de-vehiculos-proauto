@@ -501,6 +501,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             chk.addEventListener('change', (e) => {
                 if (e.target.checked) tr.classList.add('row-tachada');
                 else tr.classList.remove('row-tachada');
+                row._listo = e.target.checked;
                 updateVehicleField(ot, 'listo', e.target.checked, row._origen);
             });
             tdListo.appendChild(chk);
@@ -526,6 +527,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             selEnc.addEventListener('change', (e) => {
                 tr.dataset.encargado = e.target.value;
+                row.encargado = e.target.value;
+                if (row['G'] !== undefined) row['G'] = e.target.value;
                 updateVehicleField(ot, 'encargado', e.target.value, row._origen);
             });
             tdEnc.appendChild(selEnc);
@@ -557,6 +560,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (e.target.value === 'SI') tr.classList.add('row-green');
                 else if (e.target.value === 'NO') tr.classList.add('row-white');
                 else tr.classList.add('row-yellow');
+                row._savedEnTaller = e.target.value;
                 updateVehicleField(ot, 'en_taller', e.target.value, row._origen);
             });
             tdTaller.appendChild(selTaller);
@@ -577,6 +581,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             inObs.placeholder = 'Observación...';
             inObs.value = row._savedObservacion || '';
             inObs.addEventListener('change', (e) => {
+                row._savedObservacion = e.target.value;
                 updateVehicleField(ot, 'observacion', e.target.value, row._origen);
             });
             tdObs.appendChild(inObs);
@@ -587,6 +592,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             inFecha.type = 'date'; inFecha.className = 'status-select fecha-seg-input';
             inFecha.value = row._savedFechaSeg || '';
             inFecha.addEventListener('change', (e) => {
+                row._savedFechaSeg = e.target.value;
                 updateVehicleField(ot, 'fecha_seguimiento', e.target.value, row._origen);
                 applyFilters();
             });
