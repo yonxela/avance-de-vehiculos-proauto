@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnLoadCloud = document.getElementById('btn-load-cloud');
     const tabBtns = document.querySelectorAll('.tab-btn');
     const originTabsContainer = document.getElementById('origin-tabs');
+    const statsSummary = document.getElementById('stats-summary');
 
     // Checklist elements
     const chkStep1 = document.getElementById('chk-step-1');
@@ -32,6 +33,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let savedVehicles = {}; // { ot: { data } }
     let currentData = null;
     let activeOriginTab = 'PROAUTO';
+    let uploadedOrigins = new Set();
 
     // 1. Cargar datos iniciales de Supabase
     async function initSupabaseData() {
@@ -92,6 +94,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Convertir savedVehicles a un formato compatible con renderTable
         const cloudData = [{}]; // Fila vacía para simular el header del Excel
         Object.values(savedVehicles).forEach(v => {
+            if (v.enTaller === 'NO') return; // Saltar los que ya fueron operados y sacados
+
             cloudData.push({
                 'B': v.ot,
                 'G': v.encargado,
@@ -110,6 +114,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         tableContainer.classList.remove('hidden');
         filterControls.classList.remove('hidden');
         originTabsContainer.classList.remove('hidden');
+        statsSummary.classList.remove('hidden');
         document.querySelectorAll('.print-controls, #action-guardar').forEach(el => el.classList.remove('hidden'));
         applyFilters();
     });
@@ -256,10 +261,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 currentData = currentData.concat(rowsWithOrigin);
 
                 if (isColorCenter) {
+                    uploadedOrigins.add('COLOR_CENTER');
                     activeOriginTab = 'COLOR_CENTER';
                     tabBtns[0].classList.remove('active');
                     tabBtns[1].classList.add('active');
                 } else {
+                    uploadedOrigins.add('PROAUTO');
                     activeOriginTab = 'PROAUTO';
                     tabBtns[0].classList.add('active');
                     tabBtns[1].classList.remove('active');
@@ -269,6 +276,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 loadingState.classList.add('hidden');
                 tableContainer.classList.remove('hidden');
                 originTabsContainer.classList.remove('hidden');
+                statsSummary.classList.remove('hidden');
                 document.querySelectorAll('.print-controls, #action-guardar, #filter-controls, #btn-save-state').forEach(el => el.classList.remove('hidden'));
 
                 applyFilters();
@@ -362,6 +370,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Filtrar solo los datos que corresponden a la pestaña activa para mostrar en la UI
         const filteredToRender = arrayOrders.filter(row => row._origen === activeOriginTab);
+
+        renderStats(filteredToRender);
 
         // Ordenar: 1. Categoría, 2. Encargado
         filteredToRender.sort((a, b) => {
@@ -496,7 +506,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         btnSaveState.onclick = async function () {
             // Guardar o actualizar TODOS los vehículos cargados (independientemente de la pestaña)
-            const updates = arrayOrders.map(row => ({
+            let updates = arrayOrders.map(row => ({
                 ot: row['B'] || row.ot,
                 encargado: row['G'] || row.encargado,
                 en_taller: row._savedEnTaller || 'REVISAR',
@@ -512,6 +522,31 @@ document.addEventListener('DOMContentLoaded', async () => {
                 fecha_orden: row._isCloudOnly ? (row.fecha_orden || '') : (row['D'] || row.fecha_orden || ''),
                 ultima_actualizacion: new Date().toISOString()
             }));
+
+            // AUTO-LIMPIEZA: identificar vehículos que estaban en la nube pero ya no están en los archivos subidos
+            // (esto significa que ya fueron operados/sacados del sistema)
+            Object.values(savedVehicles).forEach(sv => {
+                const alreadyIncluded = updates.some(u => String(u.ot).trim() === String(sv.ot).trim());
+                // Si la sucursal fue cargada hoy, pero este vehículo no vino en el reporte, lo marcamos como 'NO' en taller
+                if (uploadedOrigins.has(sv.origen) && !alreadyIncluded && sv.enTaller !== 'NO') {
+                    updates.push({
+                        ot: sv.ot,
+                        encargado: sv.encargado,
+                        en_taller: 'NO',
+                        fecha_seguimiento: sv.fechaSeguimiento,
+                        listo: sv.listo,
+                        asteriscos: sv.appearances,
+                        observacion: sv.observacion,
+                        origen: sv.origen,
+                        placa: sv.placa,
+                        vehiculo: sv.vehiculo,
+                        cliente: sv.cliente,
+                        costo: sv.costo,
+                        fecha_orden: sv.fecha_orden,
+                        ultima_actualizacion: new Date().toISOString()
+                    });
+                }
+            });
 
             const { error } = await _supabase.from('seguimiento_vehiculos').upsert(updates);
             if (!error) {
@@ -532,5 +567,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         const td = document.createElement('td');
         td.textContent = text;
         return td;
+    }
+
+    function renderStats(filteredData) {
+        statsSummary.innerHTML = '';
+        const counts = {};
+
+        // Solo contar vehículos que están actualmente en taller (SI)
+        filteredData.forEach(row => {
+            const status = row._savedEnTaller || 'REVISAR';
+            if (status === 'SI') {
+                const enc = (row['G'] || row.encargado || 'SIN ASIGNAR').toUpperCase();
+                counts[enc] = (counts[enc] || 0) + 1;
+            }
+        });
+
+        const sortedEncargados = Object.keys(counts).sort();
+
+        if (sortedEncargados.length === 0) {
+            statsSummary.innerHTML = '<p style="font-size: 0.9rem; color: var(--text-secondary); margin-left: 1rem;">No hay vehículos vigentes en taller para esta sucursal.</p>';
+            return;
+        }
+
+        sortedEncargados.forEach(enc => {
+            const card = document.createElement('div');
+            card.className = 'stat-card';
+            card.innerHTML = `
+                <span class="stat-name">${enc}</span>
+                <span class="stat-count">${counts[enc]}</span>
+            `;
+            statsSummary.appendChild(card);
+        });
     }
 });
