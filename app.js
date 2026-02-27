@@ -570,45 +570,44 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function renderStats(filteredData) {
-        function renderStats(filteredData) {
-            statsSummary.innerHTML = '';
-            const counts = {};
+        statsSummary.innerHTML = '';
+        const counts = {};
 
-            // Contar vehículos que están en taller (cualquiera que no sea explícitamente 'NO')
-            filteredData.forEach(row => {
-                const status = row._savedEnTaller || 'REVISAR';
-                if (status !== 'NO') {
-                    const enc = (row['G'] || row.encargado || 'SIN ASIGNAR').toString().trim().toUpperCase();
-                    counts[enc] = (counts[enc] || 0) + 1;
-                }
-            });
-
-            const sortedEncargados = Object.keys(counts).sort();
-            let totalVehicles = 0;
-            Object.values(counts).forEach(count => totalVehicles += count);
-
-            if (totalVehicles === 0 && sortedEncargados.length === 0) {
-                statsSummary.innerHTML = '<p style="font-size: 0.9rem; color: var(--text-secondary); margin-left: 1rem;">No hay vehículos vigentes en taller para esta sucursal.</p>';
-                return;
+        // Contar vehículos que están en taller (cualquiera que no sea explícitamente 'NO')
+        filteredData.forEach(row => {
+            const status = row._savedEnTaller || 'REVISAR';
+            if (status !== 'NO') {
+                const enc = (row['G'] || row.encargado || 'SIN ASIGNAR').toString().trim().toUpperCase();
+                counts[enc] = (counts[enc] || 0) + 1;
             }
+        });
 
-            // Agregar tarjeta de TOTAL al inicio
-            const totalCard = document.createElement('div');
-            totalCard.className = 'stat-card stat-total';
-            totalCard.innerHTML = `
+        const sortedEncargados = Object.keys(counts).sort();
+        let totalVehicles = 0;
+        Object.values(counts).forEach(count => totalVehicles += count);
+
+        if (totalVehicles === 0 && sortedEncargados.length === 0) {
+            statsSummary.innerHTML = '<p style="font-size: 0.9rem; color: var(--text-secondary); margin-left: 1rem;">No hay vehículos vigentes en taller para esta sucursal.</p>';
+            return;
+        }
+
+        // Agregar tarjeta de TOTAL al inicio
+        const totalCard = document.createElement('div');
+        totalCard.className = 'stat-card stat-total';
+        totalCard.innerHTML = `
             <span class="stat-name">TOTAL VIGENTES</span>
             <span class="stat-count">${totalVehicles}</span>
         `;
-            statsSummary.appendChild(totalCard);
+        statsSummary.appendChild(totalCard);
 
-            sortedEncargados.forEach(enc => {
-                const card = document.createElement('div');
-                card.className = 'stat-card';
-                card.innerHTML = `
+        sortedEncargados.forEach(enc => {
+            const card = document.createElement('div');
+            card.className = 'stat-card';
+            card.innerHTML = `
                 <span class="stat-name">${enc}</span>
                 <span class="stat-count">${counts[enc]}</span>
             `;
-                statsSummary.appendChild(card);
-            });
-        }
-    });
+            statsSummary.appendChild(card);
+        });
+    }
+});
