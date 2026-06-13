@@ -400,14 +400,14 @@ tbody td:last-child {
     /* Texto gris oscuro */
 }
 
-/* Aplicar tachado y opacidad a todo MENOS la última columna (Fecha de seguimiento) */
-.row-tachada td:not(:last-child) {
+/* Aplicar tachado y opacidad a todo MENOS Fecha de seguimiento y el menú */
+.row-tachada td:not(.col-fecha-seg):not(.col-menu) {
     text-decoration: line-through;
     opacity: 0.6;
 }
 
-/* La última columna (Fecha de Seguimiento) no se tacha y se ve normal */
-.row-tachada td:last-child {
+/* La columna Fecha de Seguimiento no se tacha y se ve normal */
+.row-tachada td.col-fecha-seg {
     background-color: #f9fafb !important;
     /* Un poco normal / resaltado */
     opacity: 1 !important;
@@ -492,6 +492,128 @@ td.col-costo {
     min-width: 80px;
     white-space: normal;
     text-align: center;
+}
+
+/* Ocultar columna ENCARGADO cuando hay un responsable seleccionado */
+#vehicles-table.hide-encargado th.col-encargado,
+#vehicles-table.hide-encargado td.col-encargado {
+    display: none;
+}
+
+/* Columna del menú de acciones (tres puntos) */
+th.col-menu,
+td.col-menu {
+    width: 44px;
+    min-width: 44px;
+    text-align: center;
+    padding: 0.25rem;
+}
+
+.row-menu-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background-color 0.15s, color 0.15s;
+}
+
+.row-menu-btn:hover {
+    background-color: rgba(0, 0, 0, 0.07);
+    color: var(--text-primary);
+}
+
+/* Dropdown del menú de fila */
+.row-menu {
+    position: fixed;
+    z-index: 1000;
+    min-width: 230px;
+    background: #fff;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 10px 25px -5px rgb(0 0 0 / 0.15), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+    padding: 0.35rem;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.row-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    width: 100%;
+    padding: 0.55rem 0.75rem;
+    border: none;
+    background: transparent;
+    border-radius: var(--radius-md);
+    font-family: inherit;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    cursor: pointer;
+    text-align: left;
+}
+
+.row-menu-item:hover {
+    background-color: #f3f4f6;
+}
+
+.row-menu-item svg {
+    flex-shrink: 0;
+}
+
+.row-menu-item .chevron {
+    margin-left: auto;
+    color: var(--text-secondary);
+}
+
+.row-menu-item.current {
+    font-weight: 600;
+    color: #bb3f3f;
+    cursor: default;
+}
+
+.row-menu-item.current:hover {
+    background: transparent;
+}
+
+.row-menu-item.current .chevron {
+    color: #bb3f3f;
+}
+
+.row-menu-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.5rem 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 0.35rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary);
+}
+
+.row-menu-back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.row-menu-back:hover {
+    background-color: #f3f4f6;
 }
 
 /* Antigüedad de la orden */
@@ -620,6 +742,13 @@ select.print-select {
     }
 
     tr.hidden-print {
+        display: none !important;
+    }
+
+    /* El menú de tres puntos nunca se imprime */
+    th.col-menu,
+    td.col-menu,
+    .row-menu {
         display: none !important;
     }
 

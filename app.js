@@ -34,6 +34,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     let activeOriginTab = 'PROAUTO';
     let uploadedOrigins = new Set();
     let currentFilterEncargado = '';
+    let allEncargados = [];
+    let lastFilteredData = [];
+    let openRowMenuEl = null;
 
     // 1. Cargar datos iniciales de Supabase
     async function initSupabaseData() {
@@ -135,6 +138,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         const showSinFecha = document.querySelector('.date-filter-cb[value="sin_fecha"]').checked;
         const selectedEncargado = currentFilterEncargado;
 
+        closeRowMenu();
+        // Ocultar la columna ENCARGADO cuando hay un responsable seleccionado (es redundante)
+        tableContainer.classList.toggle('hide-encargado', selectedEncargado !== '');
+
         const allRows = tableBody.querySelectorAll('tr');
         const todayStr = new Date().toLocaleDateString('en-CA');
 
@@ -176,6 +183,119 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
         if (currentSectorHeader && !sectorHasRows) currentSectorHeader.classList.add('hidden');
+    }
+
+    // ----- Menú de tres puntos por fila -----
+    function closeRowMenu() {
+        if (openRowMenuEl) {
+            openRowMenuEl.remove();
+            openRowMenuEl = null;
+        }
+    }
+
+    document.addEventListener('click', (e) => {
+        if (openRowMenuEl && !openRowMenuEl.contains(e.target)) closeRowMenu();
+    });
+    window.addEventListener('scroll', closeRowMenu, true);
+    window.addEventListener('resize', closeRowMenu);
+
+    function changeResponsable(tr, row, newEnc) {
+        const ot = tr.dataset.ot;
+        tr.dataset.encargado = newEnc;
+        row.encargado = newEnc;
+        if (row['G'] !== undefined) row['G'] = newEnc;
+        // Sincronizar el select de la fila por si la columna está visible
+        const sel = tr.querySelector('.encargado-select');
+        if (sel) sel.value = newEnc;
+        updateVehicleField(ot, 'encargado', newEnc, row._origen);
+        applyFilters();
+        renderStats(lastFilteredData);
+    }
+
+    function openRowMenu(anchorBtn, tr, row) {
+        closeRowMenu();
+
+        const menu = document.createElement('div');
+        menu.className = 'row-menu';
+        menu._anchor = anchorBtn;
+
+        const position = () => {
+            const rect = anchorBtn.getBoundingClientRect();
+            const mw = menu.offsetWidth;
+            const mh = menu.offsetHeight;
+            let left = rect.right - mw;
+            if (left < 8) left = 8;
+            let top = rect.bottom + 6;
+            if (top + mh > window.innerHeight - 8) top = Math.max(8, rect.top - mh - 6);
+            menu.style.left = left + 'px';
+            menu.style.top = top + 'px';
+        };
+
+        // Vista principal del menú
+        const renderMain = () => {
+            menu.innerHTML = '';
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'row-menu-item';
+            item.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M19 8v6"></path><path d="M22 11h-6"></path></svg>
+                <span>Cambiar responsable</span>
+                <svg class="chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>`;
+            item.addEventListener('click', (e) => {
+                e.stopPropagation();
+                renderEncList();
+                position();
+            });
+            menu.appendChild(item);
+        };
+
+        // Vista con la lista de responsables
+        const renderEncList = () => {
+            menu.innerHTML = '';
+            const current = (row['G'] || row.encargado || '').toString().trim();
+
+            const header = document.createElement('div');
+            header.className = 'row-menu-header';
+            const backBtn = document.createElement('button');
+            backBtn.type = 'button';
+            backBtn.className = 'row-menu-back';
+            backBtn.title = 'Volver';
+            backBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>';
+            backBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                renderMain();
+                position();
+            });
+            header.appendChild(backBtn);
+            const headerLabel = document.createElement('span');
+            headerLabel.textContent = 'Cambiar responsable';
+            header.appendChild(headerLabel);
+            menu.appendChild(header);
+
+            allEncargados.forEach(enc => {
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'row-menu-item' + (enc === current ? ' current' : '');
+                const name = document.createElement('span');
+                name.textContent = enc;
+                item.appendChild(name);
+                if (enc === current) {
+                    item.insertAdjacentHTML('beforeend', '<svg class="chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>');
+                } else {
+                    item.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        changeResponsable(tr, row, enc);
+                        closeRowMenu();
+                    });
+                }
+                menu.appendChild(item);
+            });
+        };
+
+        renderMain();
+        document.body.appendChild(menu);
+        position();
+        openRowMenuEl = menu;
     }
 
     // Añadir encargado manual
@@ -394,6 +514,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     uploadInputColor.addEventListener('change', (e) => handleExcelUpload(e, true));
 
     function renderTable(data) {
+        closeRowMenu();
         tableBody.innerHTML = '';
         if (!data || data.length < 2) return;
 
@@ -465,10 +586,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
         const listEncargados = Array.from(uniqueEncargadosSet).sort();
-
+        allEncargados = listEncargados;
 
         // Filtrar solo los datos que corresponden a la pestaña activa para mostrar en la UI
         const filteredToRender = arrayOrders.filter(row => row._origen === activeOriginTab);
+        lastFilteredData = filteredToRender;
 
         renderStats(filteredToRender);
 
@@ -489,7 +611,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 currentCategory = row._categoryName;
                 const trSep = document.createElement('tr');
                 trSep.className = 'separator-row';
-                trSep.innerHTML = `<td colspan="12">${currentCategory}</td>`;
+                trSep.innerHTML = `<td colspan="13">${currentCategory}</td>`;
                 tableBody.appendChild(trSep);
             }
 
@@ -524,8 +646,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // Encargado Select
             const tdEnc = document.createElement('td');
+            tdEnc.className = 'col-encargado';
             const selEnc = document.createElement('select');
-            selEnc.className = 'status-select';
+            selEnc.className = 'status-select encargado-select';
             listEncargados.forEach(enc => {
                 const opt = document.createElement('option');
                 opt.value = enc; opt.textContent = enc;
@@ -533,10 +656,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 selEnc.appendChild(opt);
             });
             selEnc.addEventListener('change', (e) => {
-                tr.dataset.encargado = e.target.value;
-                row.encargado = e.target.value;
-                if (row['G'] !== undefined) row['G'] = e.target.value;
-                updateVehicleField(ot, 'encargado', e.target.value, row._origen);
+                changeResponsable(tr, row, e.target.value);
             });
             tdEnc.appendChild(selEnc);
             tr.appendChild(tdEnc);
@@ -595,6 +715,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             tr.appendChild(tdObs);
 
             const tdFecha = document.createElement('td');
+            tdFecha.className = 'col-fecha-seg';
             const inFecha = document.createElement('input');
             inFecha.type = 'date'; inFecha.className = 'status-select fecha-seg-input';
             inFecha.value = row._savedFechaSeg || '';
@@ -605,6 +726,25 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             tdFecha.appendChild(inFecha);
             tr.appendChild(tdFecha);
+
+            // Menú de acciones de la fila (tres puntos)
+            const tdMenu = document.createElement('td');
+            tdMenu.className = 'col-menu';
+            const menuBtn = document.createElement('button');
+            menuBtn.type = 'button';
+            menuBtn.className = 'row-menu-btn';
+            menuBtn.title = 'Opciones';
+            menuBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="12" cy="19" r="1.8"></circle></svg>';
+            menuBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (openRowMenuEl && openRowMenuEl._anchor === menuBtn) {
+                    closeRowMenu();
+                } else {
+                    openRowMenu(menuBtn, tr, row);
+                }
+            });
+            tdMenu.appendChild(menuBtn);
+            tr.appendChild(tdMenu);
 
             tableBody.appendChild(tr);
         });
